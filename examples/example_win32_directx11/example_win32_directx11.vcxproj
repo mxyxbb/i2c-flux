@@ -180,7 +180,6 @@
     <ClInclude Include="core\ui\views\i2c_table_window.h" />
     <ClInclude Include="core\ui\views\main_window.h" />
     <ClInclude Include="core\ui\widgets\activity_indicator.h" />
-    <ClInclude Include="core\utils\expression_evaluator.h" />
     <ClInclude Include="core\viewmodels\i2c_simple_viewmodel.h" />
     <ClInclude Include="core\viewmodels\i2c_table_viewmodel.h" />
     <ClInclude Include="fonts\font_wqdkwm.h" />

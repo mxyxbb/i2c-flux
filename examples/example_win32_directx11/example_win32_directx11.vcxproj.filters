@@ -43,7 +43,6 @@
     <ClInclude Include="core\models\i2c_simple_app.h" />
     <ClInclude Include="core\models\i2c_table_app.h" />
     <ClInclude Include="core\ui\widgets\activity_indicator.h" />
-    <ClInclude Include="core\utils\expression_evaluator.h" />
     <ClInclude Include="core\services\configuration_service.h" />
     <ClInclude Include="core\services\expression_parser.h" />
   </ItemGroup>
