@@ -1,4 +1,5 @@
 #include "i2c_table_viewmodel.h"
+#include "../services/expression_parser.h"  // 新增：引入表达式解析器
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -7,6 +8,7 @@ namespace I2CDebugger {
 
     I2CTableViewModel::I2CTableViewModel(std::shared_ptr<HardwareService> hardwareService)
         : m_hardwareService(hardwareService)
+        , m_expressionParser(std::make_unique<ExpressionParser>())  // 新增：初始化表达式解析器
     {
         // 初始化默认命令组
         CommandGroup group1;
@@ -50,7 +52,7 @@ namespace I2CDebugger {
         m_hardwareService->Disconnect();
     }
 
-    CommandGroup& I2CTableViewModel::GetCurrentGroup()
+    CommandGroup& I2CTableViewModel::GetCurrentGroup1()
     {
         if (m_data.currentGroupIndex < 0 ||
             m_data.currentGroupIndex >= static_cast<int>(m_data.commandGroups.size())) {
@@ -79,7 +81,7 @@ namespace I2CDebugger {
     void I2CTableViewModel::RenameGroup(const std::string& newName)
     {
         if (!newName.empty()) {
-            GetCurrentGroup().name = newName;
+            GetCurrentGroup1().name = newName;
         }
     }
 
@@ -109,12 +111,12 @@ namespace I2CDebugger {
         RegisterEntry entry;
         entry.regAddress = 0x00;
         entry.length = 1;
-        GetCurrentGroup().registerEntries.push_back(entry);
+        GetCurrentGroup1().registerEntries.push_back(entry);
     }
 
     void I2CTableViewModel::DeleteRegisterEntry()
     {
-        auto& entries = GetCurrentGroup().registerEntries;
+        auto& entries = GetCurrentGroup1().registerEntries;
         if (entries.empty()) return;
 
         int index = m_data.selectedRowRegister;
@@ -130,7 +132,7 @@ namespace I2CDebugger {
 
     void I2CTableViewModel::CopyRegisterEntry()
     {
-        auto& entries = GetCurrentGroup().registerEntries;
+        auto& entries = GetCurrentGroup1().registerEntries;
         if (entries.empty()) return;
 
         int index = m_data.selectedRowRegister;
@@ -145,7 +147,7 @@ namespace I2CDebugger {
 
     void I2CTableViewModel::MoveRegisterEntryUp()
     {
-        auto& entries = GetCurrentGroup().registerEntries;
+        auto& entries = GetCurrentGroup1().registerEntries;
         int index = m_data.selectedRowRegister;
         if (index > 0 && index < static_cast<int>(entries.size())) {
             std::swap(entries[index], entries[index - 1]);
@@ -155,7 +157,7 @@ namespace I2CDebugger {
 
     void I2CTableViewModel::MoveRegisterEntryDown()
     {
-        auto& entries = GetCurrentGroup().registerEntries;
+        auto& entries = GetCurrentGroup1().registerEntries;
         int index = m_data.selectedRowRegister;
         if (index >= 0 && index < static_cast<int>(entries.size()) - 1) {
             std::swap(entries[index], entries[index + 1]);
@@ -166,13 +168,12 @@ namespace I2CDebugger {
     void I2CTableViewModel::ReadAllRegisters()
     {
         if (!m_data.isConnected || m_data.isReadingAllRegisters) {
-            return;  // 未连接或正在读取时不执行
+            return;
         }
-        auto& group = GetCurrentGroup();
+        auto& group = GetCurrentGroup1();
         if (group.registerEntries.empty()) {
             return;
         }
-        // 设置正在读取标志
         m_data.isReadingAllRegisters = true;
         m_hardwareService->ReadAllRegisters(group.slaveAddress, group.registerEntries);
     }
@@ -183,12 +184,12 @@ namespace I2CDebugger {
         SingleTriggerEntry entry;
         entry.regAddress = 0x00;
         entry.length = 1;
-        GetCurrentGroup().singleTriggerEntries.push_back(entry);
+        GetCurrentGroup1().singleTriggerEntries.push_back(entry);
     }
 
     void I2CTableViewModel::DeleteSingleEntry()
     {
-        auto& entries = GetCurrentGroup().singleTriggerEntries;
+        auto& entries = GetCurrentGroup1().singleTriggerEntries;
         if (entries.empty()) return;
 
         int index = m_data.selectedRowSingle;
@@ -204,7 +205,7 @@ namespace I2CDebugger {
 
     void I2CTableViewModel::CopySingleEntry()
     {
-        auto& entries = GetCurrentGroup().singleTriggerEntries;
+        auto& entries = GetCurrentGroup1().singleTriggerEntries;
         if (entries.empty()) return;
 
         int index = m_data.selectedRowSingle;
@@ -219,7 +220,7 @@ namespace I2CDebugger {
 
     void I2CTableViewModel::MoveSingleEntryUp()
     {
-        auto& entries = GetCurrentGroup().singleTriggerEntries;
+        auto& entries = GetCurrentGroup1().singleTriggerEntries;
         int index = m_data.selectedRowSingle;
         if (index > 0 && index < static_cast<int>(entries.size())) {
             std::swap(entries[index], entries[index - 1]);
@@ -229,7 +230,7 @@ namespace I2CDebugger {
 
     void I2CTableViewModel::MoveSingleEntryDown()
     {
-        auto& entries = GetCurrentGroup().singleTriggerEntries;
+        auto& entries = GetCurrentGroup1().singleTriggerEntries;
         int index = m_data.selectedRowSingle;
         if (index >= 0 && index < static_cast<int>(entries.size()) - 1) {
             std::swap(entries[index], entries[index + 1]);
@@ -240,7 +241,7 @@ namespace I2CDebugger {
     void I2CTableViewModel::ExecuteSingleCommand(int index)
     {
         if (!m_data.isConnected) return;
-        auto& group = GetCurrentGroup();
+        auto& group = GetCurrentGroup1();
         if (index < 0 || index >= static_cast<int>(group.singleTriggerEntries.size())) return;
 
         const auto& entry = group.singleTriggerEntries[index];
@@ -262,22 +263,19 @@ namespace I2CDebugger {
     void I2CTableViewModel::ExecuteAllSingleCommands()
     {
         if (!m_data.isConnected || m_data.isExecuteAllSingleCommands) {
-            return;  // 未连接或正在读取时不执行
+            return;
         }
-        auto& group = GetCurrentGroup();
+        auto& group = GetCurrentGroup1();
         if (group.singleTriggerEntries.empty()) {
             return;
         }
-        // 设置正在读取标志
         m_data.isExecuteAllSingleCommands = true;
-
         m_hardwareService->ExecuteAllSingleTrigger(group.slaveAddress, group.singleTriggerEntries);
     }
 
-    // 单次触发全选/全不选
     void I2CTableViewModel::SetAllSingleEntriesEnabled(bool enabled)
     {
-        auto& entries = GetCurrentGroup().singleTriggerEntries;
+        auto& entries = GetCurrentGroup1().singleTriggerEntries;
         for (auto& entry : entries) {
             entry.enabled = enabled;
         }
@@ -308,12 +306,12 @@ namespace I2CDebugger {
         PeriodicTriggerEntry entry;
         entry.regAddress = 0x00;
         entry.length = 1;
-        GetCurrentGroup().periodicTriggerEntries.push_back(entry);
+        GetCurrentGroup1().periodicTriggerEntries.push_back(entry);
     }
 
     void I2CTableViewModel::DeletePeriodicEntry()
     {
-        auto& entries = GetCurrentGroup().periodicTriggerEntries;
+        auto& entries = GetCurrentGroup1().periodicTriggerEntries;
         if (entries.empty()) return;
 
         int index = m_data.selectedRowPeriodic;
@@ -329,7 +327,7 @@ namespace I2CDebugger {
 
     void I2CTableViewModel::CopyPeriodicEntry()
     {
-        auto& entries = GetCurrentGroup().periodicTriggerEntries;
+        auto& entries = GetCurrentGroup1().periodicTriggerEntries;
         if (entries.empty()) return;
 
         int index = m_data.selectedRowPeriodic;
@@ -338,14 +336,14 @@ namespace I2CDebugger {
         }
 
         PeriodicTriggerEntry copy = entries[index];
-        copy.errorCount = 0;  // 复制时重置错误计数
+        copy.errorCount = 0;
         entries.insert(entries.begin() + index + 1, copy);
         m_data.selectedRowPeriodic = index + 1;
     }
 
     void I2CTableViewModel::MovePeriodicEntryUp()
     {
-        auto& entries = GetCurrentGroup().periodicTriggerEntries;
+        auto& entries = GetCurrentGroup1().periodicTriggerEntries;
         int index = m_data.selectedRowPeriodic;
         if (index > 0 && index < static_cast<int>(entries.size())) {
             std::swap(entries[index], entries[index - 1]);
@@ -355,7 +353,7 @@ namespace I2CDebugger {
 
     void I2CTableViewModel::MovePeriodicEntryDown()
     {
-        auto& entries = GetCurrentGroup().periodicTriggerEntries;
+        auto& entries = GetCurrentGroup1().periodicTriggerEntries;
         int index = m_data.selectedRowPeriodic;
         if (index >= 0 && index < static_cast<int>(entries.size()) - 1) {
             std::swap(entries[index], entries[index + 1]);
@@ -366,7 +364,7 @@ namespace I2CDebugger {
     void I2CTableViewModel::ExecutePeriodicCommand(int index)
     {
         if (!m_data.isConnected) return;
-        auto& group = GetCurrentGroup();
+        auto& group = GetCurrentGroup1();
         if (index < 0 || index >= static_cast<int>(group.periodicTriggerEntries.size())) return;
 
         const auto& entry = group.periodicTriggerEntries[index];
@@ -388,7 +386,7 @@ namespace I2CDebugger {
     void I2CTableViewModel::StartPeriodicExecution()
     {
         if (!m_data.isConnected) return;
-        auto& group = GetCurrentGroup();
+        auto& group = GetCurrentGroup1();
         m_data.isPeriodicRunning = true;
         m_hardwareService->StartPeriodicExecution(group.slaveAddress, group.periodicTriggerEntries, group.interval);
     }
@@ -399,10 +397,9 @@ namespace I2CDebugger {
         m_hardwareService->StopPeriodicExecution();
     }
 
-    // 周期触发全选/全不选
     void I2CTableViewModel::SetAllPeriodicEntriesEnabled(bool enabled)
     {
-        auto& entries = GetCurrentGroup().periodicTriggerEntries;
+        auto& entries = GetCurrentGroup1().periodicTriggerEntries;
         for (auto& entry : entries) {
             entry.enabled = enabled;
         }
@@ -427,14 +424,106 @@ namespace I2CDebugger {
         return false;
     }
 
-    // 重置周期触发错误计数
     void I2CTableViewModel::ResetPeriodicErrorCounts()
     {
-        auto& entries = GetCurrentGroup().periodicTriggerEntries;
+        auto& entries = GetCurrentGroup1().periodicTriggerEntries;
         for (auto& entry : entries) {
             entry.errorCount = 0;
         }
     }
+
+    // ============== 新增：解析相关方法 ==============
+    void I2CTableViewModel::UpdateParsedValue(size_t entryIndex)
+    {
+        auto& group = GetCurrentGroup1();
+        auto& entries = group.periodicTriggerEntries;
+
+        if (entryIndex >= entries.size()) {  // size_t 不需要检查 < 0
+            return;
+        }
+
+        auto& entry = entries[entryIndex];
+
+        // 检查是否配置了解析
+        if (!entry.parseConfigured || entry.formula.empty()) {
+            entry.parseSuccess = false;
+            return;
+        }
+
+        // 检查数据是否为空
+        if (entry.data.empty()) {
+            entry.parseSuccess = false;
+            entry.lastError = "数据为空";
+            return;
+        }
+
+        // 调用表达式解析器
+        auto result = m_expressionParser->EvaluateReadFormula(entry.formula, entry.data);
+
+        entry.parsedValue = result.value;
+        entry.parseSuccess = result.success;
+        if (!result.success) {
+            entry.lastError = result.errorMsg;
+        }
+    }
+
+    void I2CTableViewModel::UpdateRawFromParsedValue(size_t entryIndex, double newValue)
+    {
+        auto& group = GetCurrentGroup1();
+        auto& entries = group.periodicTriggerEntries;
+
+        if (entryIndex >= entries.size()) {  // size_t 不需要检查 < 0
+            return;
+        }
+
+        auto& entry = entries[entryIndex];
+
+        bool success = false;
+        std::string errorMsg;
+
+        auto rawData = m_expressionParser->EvaluateWriteFormula(
+            entry.writeFormula,
+            newValue,
+            entry.length,
+            success,
+            errorMsg);
+
+        if (success) {
+            entry.data = rawData;
+            entry.parsedValue = newValue;
+            entry.parseSuccess = true;
+        }
+        else {
+            entry.lastError = errorMsg;
+            entry.parseSuccess = false;
+        }
+    }
+    // 新增方法实现
+    void I2CTableViewModel::SetParseConfig(size_t entryIndex, const ParseConfig& config) {
+        auto& group = GetCurrentGroup1();  // 改为非 const 版本
+        if (m_data.currentTab == TabType::PeriodicTrigger &&
+            entryIndex < group.periodicTriggerEntries.size()) {
+            group.periodicTriggerEntries[entryIndex].parseConfig = config;
+            // 立即更新解析值
+            UpdateParsedValue(entryIndex);
+        }
+    }
+
+    ParseConfig& I2CTableViewModel::GetParseConfig(size_t entryIndex) {
+        auto& group = GetCurrentGroup1();  // 改为非 const 版本
+        static ParseConfig emptyConfig;
+        if (m_data.currentTab == TabType::PeriodicTrigger &&
+            entryIndex < group.periodicTriggerEntries.size()) {
+            return group.periodicTriggerEntries[entryIndex].parseConfig;
+        }
+        return emptyConfig;
+    }
+
+    std::string I2CTableViewModel::GetFormulaHelp() const {
+        return ExpressionParser::GetFormulaHelp();
+    }
+
+    // ============== 新增结束 ==============
 
     uint8_t I2CTableViewModel::ParseHexInput(const char* input) const
     {
@@ -491,7 +580,7 @@ namespace I2CDebugger {
         // 触发活动指示灯
         m_data.activityIndicator.Trigger();
 
-        auto& group = GetCurrentGroup();
+        auto& group = GetCurrentGroup1();
 
         switch (packet.controlId) {
         case 1: {
@@ -507,7 +596,6 @@ namespace I2CDebugger {
                     entry.lastError = packet.errorMsg;
                 }
             }
-            // 检查是否是最后一条命令，如果是则重置读取状态
             if (packet.commandId >= group.registerEntries.size() - 1 || !packet.success) {
                 m_data.isReadingAllRegisters = false;
             }
@@ -526,7 +614,6 @@ namespace I2CDebugger {
                     entry.lastError = packet.errorMsg;
                 }
             }
-            // 检查是否是最后一条命令，如果是则重置读取状态
             if (packet.commandId >= group.singleTriggerEntries.size() - 1 || !packet.success) {
                 m_data.isExecuteAllSingleCommands = false;
             }
@@ -540,15 +627,19 @@ namespace I2CDebugger {
                 if (packet.success && !packet.rawData.empty()) {
                     entry.data = packet.rawData;
                     entry.lastError.clear();
+
+                    // ✅ 新增：读取成功后自动更新解析值
+                    if (entry.parseConfigured && !entry.formula.empty()) {
+                        UpdateParsedValue((packet.commandId));
+                    }
                 }
                 else if (!packet.success) {
-                    entry.lastError = packet.errorMsg;// NAK错误时增加错误计数
+                    entry.lastError = packet.errorMsg;
                     if (packet.errorType == ErrorType::SlaveNotResponse) {
                         entry.errorCount++;
                     }
                 }
             }
-
             break;
         }
         default:

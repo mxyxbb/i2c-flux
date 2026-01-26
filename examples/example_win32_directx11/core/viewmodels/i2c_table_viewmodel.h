@@ -3,6 +3,7 @@
 #include "../models/i2c_table_app.h"
 #include "../services/hardware_service.h"
 #include "../services/configuration_service.h"
+#include "../services/expression_parser.h"  // 添加
 #include <memory>
 #include <string>
 
@@ -59,8 +60,21 @@ namespace I2CDebugger {
 
         void ResetPeriodicErrorCounts();
 
-        CommandGroup& GetCurrentGroup();
-        const CommandGroup& GetCurrentGroup() const;
+        // 新增：解析相关方法
+        void SetParseConfig(size_t entryIndex, const ParseConfig& config);
+        ParseConfig& GetParseConfig(size_t entryIndex);
+
+        // 使用读取公式计算解析值
+        void UpdateParsedValue(size_t entryIndex);
+
+        // 使用写入公式从十进制值计算原始字节
+        void UpdateRawFromParsedValue(size_t entryIndex, double newValue);
+
+        // 获取公式帮助文本
+        std::string GetFormulaHelp() const;
+
+        CommandGroup& GetCurrentGroup1();
+        const CommandGroup& GetCurrentGroup() const;  // 添加 const 版本
 
         I2CTableAppData& GetData() { return m_data; }
         const I2CTableAppData& GetData() const { return m_data; }
@@ -74,6 +88,7 @@ namespace I2CDebugger {
         I2CTableAppData m_data;
         std::shared_ptr<HardwareService> m_hardwareService;
         std::shared_ptr<ConfigurationService> m_configService;
+        std::unique_ptr<ExpressionParser> m_expressionParser;  // 添加
     };
 
 }

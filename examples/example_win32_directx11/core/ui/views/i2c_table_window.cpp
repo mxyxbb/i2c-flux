@@ -147,7 +147,8 @@ namespace I2CDebugger {
         RenderPropertyPopup();
         RenderButtonNamePopup();
         RenderRenamePopup();
-        RenderParsePopup();
+        // 渲染解析配置弹窗
+        RenderParseConfigPopup();
         RenderExportPopup();
         RenderImportPopup();
 
@@ -267,7 +268,7 @@ namespace I2CDebugger {
     void I2CTableWindow::RenderSlaveAddressInput()
     {
         auto& data = m_viewModel->GetData();
-        auto& group = m_viewModel->GetCurrentGroup();
+        auto& group = m_viewModel->GetCurrentGroup1();
 
         ImGui::Text("从机地址:");
         ImGui::SameLine();
@@ -303,7 +304,7 @@ namespace I2CDebugger {
     void I2CTableWindow::RenderRegisterTableTab()
     {
         auto& data = m_viewModel->GetData();
-        auto& entries = m_viewModel->GetCurrentGroup().registerEntries;
+        auto& entries = m_viewModel->GetCurrentGroup1().registerEntries;
 
         ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY |
             ImGuiTableFlags_SizingStretchProp;
@@ -436,7 +437,7 @@ namespace I2CDebugger {
     void I2CTableWindow::RenderSingleTriggerTab()
     {
         auto& data = m_viewModel->GetData();
-        auto& entries = m_viewModel->GetCurrentGroup().singleTriggerEntries;
+        auto& entries = m_viewModel->GetCurrentGroup1().singleTriggerEntries;
 
         ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
             ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY |
@@ -522,7 +523,7 @@ namespace I2CDebugger {
                 ImGui::TableSetColumnIndex(1);
                 char label[32];
                 std::snprintf(label, sizeof(label), "%d", i + 1);
-                if (ImGui::Selectable(label, isSelected, ImGuiSelectableFlags_SpanAllColumns)) {
+                if (ImGui::Selectable(label, isSelected, ImGuiSelectableFlags_None, ImVec2(0, 0))) {
                     data.selectedRowSingle = i;
                 }
 
@@ -651,7 +652,7 @@ namespace I2CDebugger {
     void I2CTableWindow::RenderPeriodicTriggerTab()
     {
         auto& data = m_viewModel->GetData();
-        auto& entries = m_viewModel->GetCurrentGroup().periodicTriggerEntries;
+        auto& entries = m_viewModel->GetCurrentGroup1().periodicTriggerEntries;
 
         ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
             ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY |
@@ -659,15 +660,16 @@ namespace I2CDebugger {
 
         float tableHeight = ImGui::GetContentRegionAvail().y - 40;
 
-        // 增加一列用于错误计数，共11列
-        if (ImGui::BeginTable("PeriodicTriggerTable", 11, flags, ImVec2(0, tableHeight))) {
+        // 增加解析值列，共12列
+        if (ImGui::BeginTable("PeriodicTriggerTable", 12, flags, ImVec2(0, tableHeight))) {
             ImGui::TableSetupColumn("##En", ImGuiTableColumnFlags_WidthFixed, 25);
             ImGui::TableSetupColumn("序号", ImGuiTableColumnFlags_WidthFixed, 35);
             ImGui::TableSetupColumn("Reg地址", ImGuiTableColumnFlags_WidthFixed, 70);
             ImGui::TableSetupColumn("长度", ImGuiTableColumnFlags_WidthFixed, 40);
-            ImGui::TableSetupColumn("寄存器值", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("寄存器值(Raw)", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("解析值", ImGuiTableColumnFlags_WidthFixed, 80);  // 新增解析值列
             ImGui::TableSetupColumn("状态", ImGuiTableColumnFlags_WidthFixed, 40);
-            ImGui::TableSetupColumn("NAK", ImGuiTableColumnFlags_WidthFixed, 45);  // 错误计数列
+            ImGui::TableSetupColumn("NAK", ImGuiTableColumnFlags_WidthFixed, 45);
             ImGui::TableSetupColumn("延时", ImGuiTableColumnFlags_WidthFixed, 50);
             ImGui::TableSetupColumn("类型", ImGuiTableColumnFlags_WidthFixed, 70);
             ImGui::TableSetupColumn("曲线", ImGuiTableColumnFlags_WidthFixed, 80);
@@ -682,10 +684,8 @@ namespace I2CDebugger {
                 bool allEnabled = m_viewModel->AreAllPeriodicEntriesEnabled();
                 bool anyEnabled = m_viewModel->AreAnyPeriodicEntriesEnabled();
 
-                // 手动处理混合状态显示
                 bool checkValue = allEnabled;
                 if (ImGui::Checkbox("##SelectAllPeriodic", &checkValue)) {
-                    // 点击时：如果当前不是全选，则全选；否则全不选
                     if (anyEnabled && !allEnabled) {
                         m_viewModel->SetAllPeriodicEntriesEnabled(true);
                     }
@@ -694,7 +694,6 @@ namespace I2CDebugger {
                     }
                 }
 
-                // 如果是混合状态，在checkbox上绘制一个横线表示
                 if (anyEnabled && !allEnabled) {
                     ImVec2 pos = ImGui::GetItemRectMin();
                     ImVec2 size = ImGui::GetItemRectSize();
@@ -713,26 +712,17 @@ namespace I2CDebugger {
             }
 
             // 其他列header
-            ImGui::TableSetColumnIndex(1);
-            ImGui::TableHeader("序号");
-            ImGui::TableSetColumnIndex(2);
-            ImGui::TableHeader("Reg地址");
-            ImGui::TableSetColumnIndex(3);
-            ImGui::TableHeader("长度");
-            ImGui::TableSetColumnIndex(4);
-            ImGui::TableHeader("寄存器值");
-            ImGui::TableSetColumnIndex(5);
-            ImGui::TableHeader("状态");
-            ImGui::TableSetColumnIndex(6);
-            ImGui::TableHeader("NAK");
-            ImGui::TableSetColumnIndex(7);
-            ImGui::TableHeader("延时");
-            ImGui::TableSetColumnIndex(8);
-            ImGui::TableHeader("类型");
-            ImGui::TableSetColumnIndex(9);
-            ImGui::TableHeader("曲线");
-            ImGui::TableSetColumnIndex(10);
-            ImGui::TableHeader("操作");
+            ImGui::TableSetColumnIndex(1);  ImGui::TableHeader("序号");
+            ImGui::TableSetColumnIndex(2);  ImGui::TableHeader("Reg地址");
+            ImGui::TableSetColumnIndex(3);  ImGui::TableHeader("长度");
+            ImGui::TableSetColumnIndex(4);  ImGui::TableHeader("寄存器值(Raw)");
+            ImGui::TableSetColumnIndex(5);  ImGui::TableHeader("解析值");
+            ImGui::TableSetColumnIndex(6);  ImGui::TableHeader("状态");
+            ImGui::TableSetColumnIndex(7);  ImGui::TableHeader("NAK");
+            ImGui::TableSetColumnIndex(8);  ImGui::TableHeader("延时");
+            ImGui::TableSetColumnIndex(9);  ImGui::TableHeader("类型");
+            ImGui::TableSetColumnIndex(10); ImGui::TableHeader("曲线");
+            ImGui::TableSetColumnIndex(11); ImGui::TableHeader("操作");
 
             for (int i = 0; i < static_cast<int>(entries.size()); i++) {
                 auto& entry = entries[i];
@@ -740,20 +730,22 @@ namespace I2CDebugger {
                 ImGui::PushID(i + 2000);
 
                 bool isSelected = (data.selectedRowPeriodic == i);
+                bool isReadType = (entry.type == CommandType::Read);
+                bool isWriteType = (entry.type == CommandType::Write);
 
-                // 启用
+                // 列0: 启用
                 ImGui::TableSetColumnIndex(0);
                 ImGui::Checkbox("##en", &entry.enabled);
 
-                // 序号
+                // 列1: 序号
                 ImGui::TableSetColumnIndex(1);
                 char label[32];
                 std::snprintf(label, sizeof(label), "%d", i + 1);
-                if (ImGui::Selectable(label, isSelected, ImGuiSelectableFlags_SpanAllColumns)) {
+                if (ImGui::Selectable(label, isSelected, ImGuiSelectableFlags_None, ImVec2(0, 0))) {
                     data.selectedRowPeriodic = i;
                 }
 
-                // Reg地址
+                // 列2: Reg地址
                 ImGui::TableSetColumnIndex(2);
                 char regBuf[8];
                 std::snprintf(regBuf, sizeof(regBuf), "0x%02X", entry.regAddress);
@@ -762,7 +754,7 @@ namespace I2CDebugger {
                     entry.regAddress = m_viewModel->ParseHexInput(regBuf);
                 }
 
-                // 长度
+                // 列3: 长度
                 ImGui::TableSetColumnIndex(3);
                 char lenBuf[8];
                 std::snprintf(lenBuf, sizeof(lenBuf), "%d", entry.length);
@@ -771,7 +763,7 @@ namespace I2CDebugger {
                     entry.length = static_cast<uint8_t>(std::stoi(lenBuf));
                 }
 
-                // 寄存器值
+                // 列4: 寄存器值(Raw) - 可编辑
                 ImGui::TableSetColumnIndex(4);
                 std::string dataStr = m_viewModel->FormatHexData(entry.data);
                 char dataBuf[256];
@@ -780,10 +772,56 @@ namespace I2CDebugger {
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 if (ImGui::InputText("##data", dataBuf, sizeof(dataBuf))) {
                     entry.data = m_viewModel->ParseHexDataInput(dataBuf);
+                    // 编辑Raw时，自动更新解析值（使用读取公式）
+                    if (entry.parseConfigured && !entry.formula.empty()) {
+                        m_viewModel->UpdateParsedValue(i);
+                    }
                 }
 
-                // 状态
+                // 列5: 解析值 - 根据命令类型决定是否可编辑
                 ImGui::TableSetColumnIndex(5);
+                if (entry.parseConfigured) {
+                    if (isWriteType) {
+                        // 写入命令：解析值可编辑，编辑后使用写入公式更新Raw
+                        char parsedBuf[64];
+                        std::snprintf(parsedBuf, sizeof(parsedBuf), "%.4g", entry.parsedValue);
+                        ImGui::SetNextItemWidth(-FLT_MIN);
+                        if (ImGui::InputText("##parsed", parsedBuf, sizeof(parsedBuf),
+                            ImGuiInputTextFlags_EnterReturnsTrue)) {
+                            try {
+                                double newValue = std::stod(parsedBuf);
+                                m_viewModel->UpdateRawFromParsedValue(i, newValue);
+                            }
+                            catch (...) {
+                                // 输入无效，忽略
+                            }
+                        }
+                        if (ImGui::IsItemHovered()) {
+                            ImGui::SetTooltip("输入十进制值，按Enter确认\n将使用写入公式转换为Raw数据");
+                        }
+                    }
+                    else if (isReadType) {
+                        // 读取命令：只显示解析值
+                        if (entry.parseSuccess) {
+                            ImGui::Text("%.4g", entry.parsedValue);
+                        }
+                        else {
+                            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "ERR");
+                            if (ImGui::IsItemHovered() && !entry.lastError.empty()) {
+                                ImGui::SetTooltip("解析错误: %s", entry.lastError.c_str());
+                            }
+                        }
+                    }
+                    else {
+                        ImGui::TextDisabled("--");
+                    }
+                }
+                else {
+                    ImGui::TextDisabled("--");
+                }
+
+                // 列6: 状态
+                ImGui::TableSetColumnIndex(6);
                 if (entry.data.empty() && entry.lastErrorType == ErrorType::None) {
                     ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "-");
                 }
@@ -796,8 +834,8 @@ namespace I2CDebugger {
                     }
                 }
 
-                // 错误计数（NAK次数）
-                ImGui::TableSetColumnIndex(6);
+                // 列7: 错误计数（NAK次数）
+                ImGui::TableSetColumnIndex(7);
                 if (entry.errorCount > 0) {
                     ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "%u", entry.errorCount);
                 }
@@ -805,8 +843,8 @@ namespace I2CDebugger {
                     ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "0");
                 }
 
-                // 延时
-                ImGui::TableSetColumnIndex(7);
+                // 列8: 延时
+                ImGui::TableSetColumnIndex(8);
                 char delayBuf[16];
                 std::snprintf(delayBuf, sizeof(delayBuf), "%u", entry.delayMs);
                 ImGui::SetNextItemWidth(-FLT_MIN);
@@ -814,8 +852,8 @@ namespace I2CDebugger {
                     entry.delayMs = static_cast<uint32_t>(std::stoul(delayBuf));
                 }
 
-                // 命令类型
-                ImGui::TableSetColumnIndex(8);
+                // 列9: 命令类型
+                ImGui::TableSetColumnIndex(9);
                 const char* typeItems[] = { "读取", "写入", "命令" };
                 int currentType = static_cast<int>(entry.type);
                 ImGui::SetNextItemWidth(-FLT_MIN);
@@ -823,15 +861,18 @@ namespace I2CDebugger {
                     entry.type = static_cast<CommandType>(currentType);
                 }
 
-                // 曲线列
-                ImGui::TableSetColumnIndex(9);
-                bool isReadType = (entry.type == CommandType::Read);
-
+                // 列10: 曲线列
+                ImGui::TableSetColumnIndex(10);
                 if (isReadType) {
                     if (ImGui::SmallButton("解析")) {
                         m_showParsePopup = true;
                         m_parseEditIndex = i;
-                        std::strncpy(m_aliasBuffer, entry.alias.c_str(), sizeof(m_aliasBuffer) - 1); std::strncpy(m_formulaBuffer, entry.formula.c_str(), sizeof(m_formulaBuffer) - 1);
+                        std::strncpy(m_aliasBuffer, entry.alias.c_str(), sizeof(m_aliasBuffer) - 1);
+                        m_aliasBuffer[sizeof(m_aliasBuffer) - 1] = '\0';
+                        std::strncpy(m_readFormulaInput, entry.formula.c_str(), sizeof(m_readFormulaInput) - 1);
+                        m_readFormulaInput[sizeof(m_readFormulaInput) - 1] = '\0';
+                        std::strncpy(m_writeFormulaInput, entry.writeFormula.c_str(), sizeof(m_writeFormulaInput) - 1);
+                        m_writeFormulaInput[sizeof(m_writeFormulaInput) - 1] = '\0';
                     }
                     ImGui::SameLine();
                     if (entry.parseConfigured) {
@@ -844,6 +885,24 @@ namespace I2CDebugger {
                         ImGui::EndDisabled();
                     }
                 }
+                else if (isWriteType) {
+                    // 写入命令也可以配置解析（用于十进制输入转Raw）
+                    if (ImGui::SmallButton("解析")) {
+                        m_showParsePopup = true;
+                        m_parseEditIndex = i;
+                        std::strncpy(m_aliasBuffer, entry.alias.c_str(), sizeof(m_aliasBuffer) - 1);
+                        m_aliasBuffer[sizeof(m_aliasBuffer) - 1] = '\0';
+                        std::strncpy(m_readFormulaInput, entry.formula.c_str(), sizeof(m_readFormulaInput) - 1);
+                        m_readFormulaInput[sizeof(m_readFormulaInput) - 1] = '\0';
+                        std::strncpy(m_writeFormulaInput, entry.writeFormula.c_str(), sizeof(m_writeFormulaInput) - 1);
+                        m_writeFormulaInput[sizeof(m_writeFormulaInput) - 1] = '\0';
+                    }
+                    ImGui::SameLine();
+                    ImGui::BeginDisabled();
+                    bool temp = false;
+                    ImGui::Checkbox("##curve", &temp);
+                    ImGui::EndDisabled();
+                }
                 else {
                     ImGui::BeginDisabled();
                     ImGui::SmallButton("解析");
@@ -853,8 +912,8 @@ namespace I2CDebugger {
                     ImGui::EndDisabled();
                 }
 
-                // 操作按钮
-                ImGui::TableSetColumnIndex(10);
+                // 列11: 操作按钮
+                ImGui::TableSetColumnIndex(11);
                 if (ImGui::SmallButton(entry.buttonName.c_str())) {
                     m_viewModel->ExecutePeriodicCommand(i);
                 }
@@ -883,7 +942,6 @@ namespace I2CDebugger {
         // 底部按钮
         ImGui::Spacing();
 
-        // 按钮禁用条件：未连接 或 正在读取
         bool canRead = data.isConnected;
 
         if (!canRead) {
@@ -905,7 +963,6 @@ namespace I2CDebugger {
             ImGui::EndDisabled();
         }
 
-        // 可选：添加提示信息
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
             if (!data.isConnected) {
                 ImGui::SetTooltip("请先连接设备");
@@ -913,7 +970,7 @@ namespace I2CDebugger {
         }
 
         ImGui::SameLine();
-        if (ImGui::Button("清零NAK计数", ImVec2(100, 0))) {
+        if (ImGui::Button("清零NAK计数", ImVec2(120, 0))) {
             m_viewModel->ResetPeriodicErrorCounts();
         }
 
@@ -929,8 +986,124 @@ namespace I2CDebugger {
         if (ImGui::Button("上移##periodic", ImVec2(50, 0))) { m_viewModel->MovePeriodicEntryUp(); }
         ImGui::SameLine();
         if (ImGui::Button("下移##periodic", ImVec2(50, 0))) { m_viewModel->MovePeriodicEntryDown(); }
+
     }
 
+    void I2CTableWindow::RenderParseConfigPopup()
+    {
+        if (!m_showParsePopup) return;
+
+        auto& entries = m_viewModel->GetCurrentGroup1().periodicTriggerEntries;
+        if (m_parseEditIndex < 0 || m_parseEditIndex >= static_cast<int>(entries.size())) {
+            m_showParsePopup = false;
+            return;
+        }
+
+        ImGui::OpenPopup("解析配置");
+
+        ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+        ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(450, 380), ImGuiCond_FirstUseEver);
+
+        if (ImGui::BeginPopupModal("解析配置", &m_showParsePopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            auto& entry = entries[m_parseEditIndex];
+
+            // 别名
+            ImGui::Text("别名 (用于曲线图例和CSV表头):");
+            ImGui::SetNextItemWidth(-1);
+            ImGui::InputText("##Alias", m_aliasBuffer, sizeof(m_aliasBuffer));
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            // 读取公式
+            ImGui::Text("读取公式 (Raw字节 → 十进制值):");
+            ImGui::SetNextItemWidth(-1);
+            ImGui::InputText("##ReadFormula", m_readFormulaInput, sizeof(m_readFormulaInput));
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+                "示例: (b1 << 8) | b0, w0 * 0.1, b0 / 10.0");
+
+            ImGui::Spacing();
+
+            // 写入公式
+            ImGui::Text("写入公式 (十进制值 → Raw字节):");
+            ImGui::SetNextItemWidth(-1);
+            ImGui::InputText("##WriteFormula", m_writeFormulaInput, sizeof(m_writeFormulaInput));
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+                "示例: value, value * 10, value / 0.1");
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            // 公式帮助
+            if (ImGui::CollapsingHeader("公式变量说明")) {
+                ImGui::TextWrapped(
+                    "=== 读取公式变量 ===\n"
+                    "b0, b1, b2... : 第1, 2, 3...个字节\n"
+                    "w0, w1...     : 小端字, w0 = (b1<<8)|b0\n"
+                    "\n"
+                    "=== 写入公式变量 ===\n"
+                    "value 或 v    : 输入的十进制值\n"
+                    "\n"
+                    "=== 支持的运算 ===\n"
+                    "+ - * / : 四则运算\n"
+                    "<< >>   : 位移运算\n"
+                    "& | ^   : 位运算\n"
+                    "sin, cos, sqrt, abs 等数学函数"
+                );
+            }
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            // 按钮
+            if (ImGui::Button("确定", ImVec2(100, 0))) {
+                entry.alias = m_aliasBuffer;
+                entry.formula = m_readFormulaInput;
+                entry.writeFormula = m_writeFormulaInput;
+                entry.parseConfigured = !entry.formula.empty();
+
+                // 立即更新解析值
+                if (entry.parseConfigured) {
+                    m_viewModel->UpdateParsedValue(m_parseEditIndex);
+                }
+
+                m_showParsePopup = false;
+            }
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("取消", ImVec2(100, 0))) {
+                m_showParsePopup = false;
+            }
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("清除配置", ImVec2(100, 0))) {
+                entry.alias.clear();
+                entry.formula.clear();
+                entry.writeFormula.clear();
+                entry.parseConfigured = false;
+                entry.showCurve = false;
+                m_showParsePopup = false;
+            }
+
+            ImGui::EndPopup();
+        }
+    }
+
+    // 打开解析配置弹窗
+    void I2CTableWindow::OpenParseConfigPopup(int entryIndex) {
+        m_parseConfigEntryIndex = entryIndex;
+        auto& config = m_viewModel->GetParseConfig(entryIndex);
+        strncpy(m_readFormulaInput, config.readFormula.c_str(), sizeof(m_readFormulaInput) - 1);
+        strncpy(m_writeFormulaInput, config.writeFormula.c_str(), sizeof(m_writeFormulaInput) - 1);
+        m_showParseConfigPopup = true;
+
+    }
     void I2CTableWindow::RenderPropertyPopup()
     {
         if (m_showPropertyPopup) {
@@ -951,7 +1124,7 @@ namespace I2CDebugger {
             ImGui::Spacing();
 
             if (ImGui::Button("确定", ImVec2(80, 0))) {
-                auto& group = m_viewModel->GetCurrentGroup();
+                auto& group = m_viewModel->GetCurrentGroup1();
                 uint8_t addr = m_viewModel->ParseHexInput(m_propertySlaveAddr);
                 if (m_propertyTabType == 0 && m_propertyEditIndex < static_cast<int>(group.registerEntries.size())) {
                     group.registerEntries[m_propertyEditIndex].overrideSlaveAddr = m_propertyOverride;
@@ -990,7 +1163,7 @@ namespace I2CDebugger {
             ImGui::Text("按钮名称:");
             ImGui::InputText("##btnname", m_buttonNameBuffer, sizeof(m_buttonNameBuffer));
             if (ImGui::Button("确定")) {
-                auto& group = m_viewModel->GetCurrentGroup();
+                auto& group = m_viewModel->GetCurrentGroup1();
 
                 if (m_buttonNameTabType == 1 && m_buttonNameEditIndex < static_cast<int>(group.singleTriggerEntries.size())) {
                     group.singleTriggerEntries[m_buttonNameEditIndex].buttonName = m_buttonNameBuffer;
@@ -1049,7 +1222,7 @@ namespace I2CDebugger {
             ImGui::InputText("##alias", m_aliasBuffer, sizeof(m_aliasBuffer));
 
             ImGui::Text("解析公式:");
-            ImGui::InputText("##formula", m_formulaBuffer, sizeof(m_formulaBuffer));
+            ImGui::InputText("##formula", m_readFormulaInput, sizeof(m_readFormulaInput));
 
             ImGui::Spacing();
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "变量说明: b0,b1,b2...代表读取的第1,2,3个字节\n"
@@ -1060,12 +1233,12 @@ namespace I2CDebugger {
             ImGui::Spacing();
 
             if (ImGui::Button("确定", ImVec2(80, 0))) {
-                auto& entries = m_viewModel->GetCurrentGroup().periodicTriggerEntries;
+                auto& entries = m_viewModel->GetCurrentGroup1().periodicTriggerEntries;
                 if (m_parseEditIndex < static_cast<int>(entries.size())) {
                     entries[m_parseEditIndex].alias = m_aliasBuffer;
-                    entries[m_parseEditIndex].formula = m_formulaBuffer;
+                    entries[m_parseEditIndex].formula = m_readFormulaInput;
                     entries[m_parseEditIndex].parseConfigured =
-                        (strlen(m_aliasBuffer) > 0 || strlen(m_formulaBuffer) > 0);
+                        (strlen(m_aliasBuffer) > 0 || strlen(m_readFormulaInput) > 0);
                 }
                 m_showParsePopup = false;
                 ImGui::CloseCurrentPopup();

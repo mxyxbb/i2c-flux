@@ -109,7 +109,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;dxgi.lib;SLABHIDtoSMBus.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(DXSDK_DIR)/Lib/x64;%(AdditionalLibraryDirectories);$(ProjectDir)hardware\SMBus\CP2112</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(DXSDK_DIR)/Lib/x64;%(AdditionalLibraryDirectories);$(ProjectDir)\hardware\SMBus\CP2112</AdditionalLibraryDirectories>
       <SubSystem>Console</SubSystem>
     </Link>
     <PostBuildEvent>
@@ -145,7 +145,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..;..\..\backends;D:\cpp\ImGuiApps\MyApplica_gemini3pro\examples\example_win32_directx11;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..;..\..\backends;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -173,6 +173,7 @@
     <ClInclude Include="core\models\i2c_simple_app.h" />
     <ClInclude Include="core\models\i2c_table_app.h" />
     <ClInclude Include="core\services\configuration_service.h" />
+    <ClInclude Include="core\services\expression_parser.h" />
     <ClInclude Include="core\services\hardware_service.h" />
     <ClInclude Include="core\UI.h" />
     <ClInclude Include="core\ui\views\i2c_simple_window.h" />
@@ -202,6 +203,7 @@
     <ClCompile Include="core\models\i2c_simple_app.cpp" />
     <ClCompile Include="core\models\i2c_table_app.cpp" />
     <ClCompile Include="core\services\configuration_service.cpp" />
+    <ClCompile Include="core\services\expression_parser.cpp" />
     <ClCompile Include="core\services\hardware_service.cpp" />
     <ClCompile Include="core\UI.cpp" />
     <ClCompile Include="core\ui\views\i2c_simple_window.cpp" />

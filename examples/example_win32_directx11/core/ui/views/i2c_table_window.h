@@ -56,12 +56,24 @@ namespace I2CDebugger {
         char m_renameBuffer[128] = "";
 
         int m_parseEditIndex = -1;
-        char m_aliasBuffer[64] = "";
-        char m_formulaBuffer[256] = "";
+        //char m_aliasBuffer[64] = "";
+        //char m_formulaBuffer[256] = "";
 
         // 导出/导入路径缓冲区
         char m_exportPathBuffer[512] = "";
         char m_importPathBuffer[512] = "";
+
+        // 解析配置弹窗相关
+        bool m_showParseConfigPopup = false;
+        int m_parseConfigEntryIndex = -1;
+        char m_aliasBuffer[64] = { 0 };
+        char m_readFormulaInput[256] = { 0 };
+        char m_writeFormulaInput[256] = { 0 };  // 写入公式缓冲区
+        char m_parsedValueBuffer[64] = { 0 };    // 解析值编辑缓冲区
+
+        // 渲染解析配置弹窗
+        void RenderParseConfigPopup();
+        void OpenParseConfigPopup(int entryIndex);
     };
 
 }
