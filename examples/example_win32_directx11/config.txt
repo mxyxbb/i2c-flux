@@ -1,0 +1,28 @@
+[GROUP]
+name=example group1
+slaveAddress=0x50
+interval=100
+[REG]
+regAddress=0x0
+length=1
+description=
+[SINGLE]
+enabled=1
+regAddress=0x0
+length=1
+type=0
+delayMs=0
+buttonName=执行
+[PERIODIC]
+enabled=1
+regAddress=0x0
+length=1
+type=0
+delayMs=0
+buttonName=执行
+alias=
+formula=
+[GROUP]
+name=example group 2
+slaveAddress=0x51
+interval=100

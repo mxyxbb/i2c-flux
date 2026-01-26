@@ -1,0 +1,99 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="imgui">
+      <UniqueIdentifier>{0587d7a3-f2ce-4d56-b84f-a0005d3bfce6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sources">
+      <UniqueIdentifier>{08e36723-ce4f-4cff-9662-c40801cf1acf}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\imconfig.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\imgui.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\imgui_internal.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\backends\imgui_impl_win32.h">
+      <Filter>sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\backends\imgui_impl_dx11.h">
+      <Filter>sources</Filter>
+    </ClInclude>
+    <ClInclude Include="hardware\PMBus\pmbus.h" />
+    <ClInclude Include="hardware\simulator\simulator.h" />
+    <ClInclude Include="hardware\SMBus\CP2112\SLABCP2112.h" />
+    <ClInclude Include="hardware\SMBus\smbus.h" />
+    <ClInclude Include="hardware\SMBus\types.h" />
+    <ClInclude Include="fonts\font_wqdkwm.h" />
+    <ClInclude Include="core\models\i2c_command.h" />
+    <ClInclude Include="core\services\hardware_service.h" />
+    <ClInclude Include="core\ui\views\i2c_simple_window.h" />
+    <ClInclude Include="core\viewmodels\i2c_simple_viewmodel.h" />
+    <ClInclude Include="core\UI.h" />
+    <ClInclude Include="core\viewmodels\i2c_table_viewmodel.h" />
+    <ClInclude Include="core\ui\views\i2c_table_window.h" />
+    <ClInclude Include="core\models\i2c_data.h" />
+    <ClInclude Include="core\app.h" />
+    <ClInclude Include="core\ui\views\main_window.h" />
+    <ClInclude Include="core\models\i2c_simple_app.h" />
+    <ClInclude Include="core\models\i2c_table_app.h" />
+    <ClInclude Include="core\ui\widgets\activity_indicator.h" />
+    <ClInclude Include="core\utils\expression_evaluator.h" />
+    <ClInclude Include="core\services\configuration_service.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\imgui.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\imgui_demo.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\imgui_draw.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\imgui_widgets.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\backends\imgui_impl_win32.cpp">
+      <Filter>sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\backends\imgui_impl_dx11.cpp">
+      <Filter>sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\imgui_tables.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="hardware\PMBus\pmbus.cpp" />
+    <ClCompile Include="hardware\SMBus\smbus.c" />
+    <ClCompile Include="hardware\SMBus\smbus_helper.c" />
+    <ClCompile Include="core\font\font_load.cpp" />
+    <ClCompile Include="core\services\hardware_service.cpp" />
+    <ClCompile Include="core\viewmodels\i2c_simple_viewmodel.cpp" />
+    <ClCompile Include="core\UI.cpp" />
+    <ClCompile Include="core\viewmodels\i2c_table_viewmodel.cpp" />
+    <ClCompile Include="core\app.cpp" />
+    <ClCompile Include="core\ui\views\i2c_simple_window.cpp" />
+    <ClCompile Include="core\ui\views\i2c_table_window.cpp" />
+    <ClCompile Include="core\ui\views\main_window.cpp" />
+    <ClCompile Include="core\models\i2c_simple_app.cpp" />
+    <ClCompile Include="core\models\i2c_table_app.cpp" />
+    <ClCompile Include="core\services\configuration_service.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\README.txt" />
+    <None Include="..\..\misc\debuggers\imgui.natvis">
+      <Filter>imgui</Filter>
+    </None>
+    <None Include="..\..\misc\debuggers\imgui.natstepfilter">
+      <Filter>imgui</Filter>
+    </None>
+  </ItemGroup>
+</Project>
