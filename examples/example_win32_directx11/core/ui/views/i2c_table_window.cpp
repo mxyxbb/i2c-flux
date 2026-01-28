@@ -493,7 +493,7 @@ namespace I2CDebugger {
             }
         }
 
-        float rightStart = ImGui::GetWindowWidth() - 320;
+        float rightStart = ImGui::GetWindowWidth() - 350;
         ImGui::SameLine(rightStart);
 
         if (ImGui::Button("添加##reg", ImVec2(50, 0))) { m_viewModel->AddRegisterEntry(); }
@@ -784,7 +784,7 @@ namespace I2CDebugger {
             }
         }
 
-        float rightStart = ImGui::GetWindowWidth() - 320;
+        float rightStart = ImGui::GetWindowWidth() - 350;
         ImGui::SameLine(rightStart);
 
         if (ImGui::Button("添加##single", ImVec2(50, 0))) { m_viewModel->AddSingleEntry(); }
@@ -1366,7 +1366,7 @@ namespace I2CDebugger {
         }
 
         // ========== 右侧按钮组 ==========
-        float rightStart = ImGui::GetWindowWidth() - 320;
+        float rightStart = ImGui::GetWindowWidth() - 350;
         ImGui::SameLine(rightStart);
 
         if (ImGui::Button("添加##periodic", ImVec2(50, 0))) { m_viewModel->AddPeriodicEntry(); }
