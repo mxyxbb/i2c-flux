@@ -14,6 +14,7 @@
 #include "core/UI.h"
 // [App] 引入我们的业务核心
 #include "core/app.h"
+#include "resource.h" // 确保包含了资源头文件
 
 #pragma comment(linker, "/subsystem:windows /entry:mainCRTStartup")
 
@@ -44,6 +45,9 @@ int main(int, char**)
 
     // Create application window
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
+    wc.hInstance = GetModuleHandle(NULL);
+    wc.hIconSm = (HICON)LoadImage(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
+    wc.hIcon = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1));
     ::RegisterClassExW(&wc);
     HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"I2C Flux", WS_OVERLAPPEDWINDOW, 100, 100, (int)(1000 * main_scale), (int)(600 * main_scale), nullptr, nullptr, wc.hInstance, nullptr);
 
