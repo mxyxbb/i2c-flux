@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include <memory>
 #include <string>
@@ -20,12 +20,12 @@ namespace I2CDebugger {
         void Render();
         void Shutdown();
 
-        // È«¾ÖÅäÖÃ²Ù×÷
+        // å…¨å±€é…ç½®æ“ä½œ
         void SaveGlobalConfig();
         void LoadGlobalConfig();
         void LoadGlobalConfigFromFile(const std::string& filePath);
 
-        // »ñÈ¡¿ÉÖ´ĞĞÎÄ¼şËùÔÚÄ¿Â¼
+        // è·å–å¯æ‰§è¡Œæ–‡ä»¶æ‰€åœ¨ç›®å½•
         std::string GetExecutableDirectory() const;
 
     private:

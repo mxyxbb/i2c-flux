@@ -1,4 +1,4 @@
-// pmbus.cpp
+﻿// pmbus.cpp
 
 #include "pmbus.h"
 #include <cstring>

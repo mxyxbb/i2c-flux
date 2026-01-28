@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include <memory>
 
@@ -15,7 +15,7 @@ namespace I2CDebugger {
             std::shared_ptr<I2CTableViewModel> tableViewModel);
         ~MainWindow();
 
-        // ³õÊ¼»¯ËùÓĞ´°¿ÚµÄÊäÈë»º³åÇø
+        // åˆå§‹åŒ–æ‰€æœ‰çª—å£çš„è¾“å…¥ç¼“å†²åŒº
         void InitializeInputBuffers();
 
         void Render();

@@ -1,374 +1,428 @@
-#include "configuration_service.h"
-#include "../models/i2c_simple_app.h"
-#include "../models/i2c_table_app.h"
-#include "../models/i2c_command.h"
-#include "../nlohmann/json.hpp"
+Ôªø#include "configuration_service.h"
 #include <fstream>
-#include <iostream>
-
-using json = nlohmann::json;
+#include <iomanip>
 
 namespace I2CDebugger {
 
-    std::shared_ptr<ConfigurationService> ConfigurationService::s_instance;
+    using json = nlohmann::json;
 
-    std::shared_ptr<ConfigurationService> ConfigurationService::GetInstance() {
-        static std::shared_ptr<ConfigurationService> instance(new ConfigurationService());
-        return instance;
+    // ============== ParseConfig Â∫èÂàóÂåñ ==============
+
+    json ConfigurationService::ParseConfigToJson(const ParseConfig& config) {
+        json j;
+        j["enabled"] = config.enabled;
+        j["readFormula"] = config.readFormula;
+        j["writeFormula"] = config.writeFormula;
+        // Â¶ÇÊûúÊúâ alias Â≠óÊÆµ
+        // j["alias"] = config.alias;
+        return j;
     }
 
-    // ±£¥Ê»´æ÷≈‰÷√
-    bool ConfigurationService::SaveGlobalConfiguration(const I2CSimpleAppData& simpleData, const I2CTableAppData& tableData,
-        const std::string& filePath) {
+    ParseConfig ConfigurationService::JsonToParseConfig(const json& j) {
+        ParseConfig config;
+        if (j.contains("enabled")) config.enabled = j["enabled"].get<bool>();
+        if (j.contains("readFormula")) config.readFormula = j["readFormula"].get<std::string>();
+        if (j.contains("writeFormula")) config.writeFormula = j["writeFormula"].get<std::string>();
+        // if (j.contains("alias")) config.alias = j["alias"].get<std::string>();
+        return config;
+    }
+
+    // ============== DataLogConfig Â∫èÂàóÂåñ ==============
+
+    json ConfigurationService::DataLogConfigToJson(const DataLogConfig& config) {
+        return json{
+            {"enabled", config.enabled},
+            {"filePath", config.filePath},
+            {"useAlias", config.useAlias},
+            {"includeTimestamp", config.includeTimestamp},
+            {"logRawData", config.logRawData},
+            {"logParsedValue", config.logParsedValue}
+        };
+    }
+
+    DataLogConfig ConfigurationService::JsonToDataLogConfig(const json& j) {
+        DataLogConfig config;
+        if (j.contains("enabled")) config.enabled = j["enabled"].get<bool>();
+        if (j.contains("filePath")) config.filePath = j["filePath"].get<std::string>();
+        if (j.contains("useAlias")) config.useAlias = j["useAlias"].get<bool>();
+        if (j.contains("includeTimestamp")) config.includeTimestamp = j["includeTimestamp"].get<bool>();
+        if (j.contains("logRawData")) config.logRawData = j["logRawData"].get<bool>();
+        if (j.contains("logParsedValue")) config.logParsedValue = j["logParsedValue"].get<bool>();
+        return config;
+    }
+
+    // ============== RegisterEntry Â∫èÂàóÂåñ ==============
+
+    json ConfigurationService::RegisterEntryToJson(const RegisterEntry& entry) {
+        json j;
+        j["regAddress"] = entry.regAddress;
+        j["length"] = entry.length;
+        j["description"] = entry.description;
+        j["overrideSlaveAddr"] = entry.overrideSlaveAddr;
+        j["slaveAddress"] = entry.slaveAddress;
+        j["parseConfig"] = ParseConfigToJson(entry.parseConfig);
+        return j;
+    }
+
+    RegisterEntry ConfigurationService::JsonToRegisterEntry(const json& j) {
+        RegisterEntry entry;
+        if (j.contains("regAddress")) entry.regAddress = j["regAddress"].get<uint8_t>();
+        if (j.contains("length")) entry.length = j["length"].get<uint8_t>();
+        if (j.contains("description")) entry.description = j["description"].get<std::string>();
+        if (j.contains("overrideSlaveAddr")) entry.overrideSlaveAddr = j["overrideSlaveAddr"].get<bool>();
+        if (j.contains("slaveAddress")) entry.slaveAddress = j["slaveAddress"].get<uint8_t>();
+        if (j.contains("parseConfig")) entry.parseConfig = JsonToParseConfig(j["parseConfig"]);
+        return entry;
+    }
+
+    // ============== SingleTriggerEntry Â∫èÂàóÂåñ ==============
+
+    json ConfigurationService::SingleTriggerEntryToJson(const SingleTriggerEntry& entry) {
+        json j;
+        j["enabled"] = entry.enabled;
+        j["regAddress"] = entry.regAddress;
+        j["length"] = entry.length;
+        j["delayMs"] = entry.delayMs;
+        j["type"] = static_cast<int>(entry.type);
+        j["buttonName"] = entry.buttonName;
+        j["overrideSlaveAddr"] = entry.overrideSlaveAddr;
+        j["slaveAddress"] = entry.slaveAddress;
+        j["parseConfig"] = ParseConfigToJson(entry.parseConfig);
+
+        if (!entry.data.empty()) {
+            j["data"] = entry.data;
+        }
+        return j;
+    }
+
+    SingleTriggerEntry ConfigurationService::JsonToSingleTriggerEntry(const json& j) {
+        SingleTriggerEntry entry;
+        if (j.contains("enabled")) entry.enabled = j["enabled"].get<bool>();
+        if (j.contains("regAddress")) entry.regAddress = j["regAddress"].get<uint8_t>();
+        if (j.contains("length")) entry.length = j["length"].get<uint8_t>();
+        if (j.contains("delayMs")) entry.delayMs = j["delayMs"].get<uint16_t>();
+        if (j.contains("type")) entry.type = static_cast<CommandType>(j["type"].get<int>());
+        if (j.contains("buttonName")) entry.buttonName = j["buttonName"].get<std::string>();
+        if (j.contains("overrideSlaveAddr")) entry.overrideSlaveAddr = j["overrideSlaveAddr"].get<bool>();
+        if (j.contains("slaveAddress")) entry.slaveAddress = j["slaveAddress"].get<uint8_t>();
+        if (j.contains("parseConfig")) entry.parseConfig = JsonToParseConfig(j["parseConfig"]);
+        if (j.contains("data")) entry.data = j["data"].get<std::vector<uint8_t>>();
+        return entry;
+    }
+
+    // ============== PeriodicTriggerEntry Â∫èÂàóÂåñ ==============
+
+    json ConfigurationService::PeriodicTriggerEntryToJson(const PeriodicTriggerEntry& entry) {
+        json j;
+        j["enabled"] = entry.enabled;
+        j["regAddress"] = entry.regAddress;
+        j["length"] = entry.length;
+        j["delayMs"] = entry.delayMs;
+        j["type"] = static_cast<int>(entry.type);
+        j["buttonName"] = entry.buttonName;
+        j["overrideSlaveAddr"] = entry.overrideSlaveAddr;
+        j["slaveAddress"] = entry.slaveAddress;
+        j["parseConfig"] = ParseConfigToJson(entry.parseConfig);
+        j["plotEnabled"] = entry.plotEnabled;
+
+        if (!entry.data.empty()) {
+            j["data"] = entry.data;
+        }
+        return j;
+    }
+
+    PeriodicTriggerEntry ConfigurationService::JsonToPeriodicTriggerEntry(const json& j) {
+        PeriodicTriggerEntry entry;
+        if (j.contains("enabled")) entry.enabled = j["enabled"].get<bool>();
+        if (j.contains("regAddress")) entry.regAddress = j["regAddress"].get<uint8_t>();
+        if (j.contains("length")) entry.length = j["length"].get<uint8_t>();
+        if (j.contains("delayMs")) entry.delayMs = j["delayMs"].get<uint16_t>();
+        if (j.contains("type")) entry.type = static_cast<CommandType>(j["type"].get<int>());
+        if (j.contains("buttonName")) entry.buttonName = j["buttonName"].get<std::string>();
+        if (j.contains("overrideSlaveAddr")) entry.overrideSlaveAddr = j["overrideSlaveAddr"].get<bool>();
+        if (j.contains("slaveAddress")) entry.slaveAddress = j["slaveAddress"].get<uint8_t>();
+        if (j.contains("parseConfig")) entry.parseConfig = JsonToParseConfig(j["parseConfig"]);
+        if (j.contains("plotEnabled")) entry.plotEnabled = j["plotEnabled"].get<bool>();
+        if (j.contains("data")) entry.data = j["data"].get<std::vector<uint8_t>>();
+        return entry;
+    }
+
+    // ============== CommandGroup Â∫èÂàóÂåñ ==============
+
+    json ConfigurationService::CommandGroupToJson(const CommandGroup& group) {
+        json j;
+        j["name"] = group.name;
+        j["slaveAddress"] = group.slaveAddress;
+        j["interval"] = group.interval;
+        j["logConfig"] = DataLogConfigToJson(group.logConfig);
+
+        j["registerEntries"] = json::array();
+        for (const auto& entry : group.registerEntries) {
+            j["registerEntries"].push_back(RegisterEntryToJson(entry));
+        }
+
+        j["singleTriggerEntries"] = json::array();
+        for (const auto& entry : group.singleTriggerEntries) {
+            j["singleTriggerEntries"].push_back(SingleTriggerEntryToJson(entry));
+        }
+
+        j["periodicTriggerEntries"] = json::array();
+        for (const auto& entry : group.periodicTriggerEntries) {
+            j["periodicTriggerEntries"].push_back(PeriodicTriggerEntryToJson(entry));
+        }
+
+        return j;
+    }
+
+    CommandGroup ConfigurationService::JsonToCommandGroup(const json& j) {
+        CommandGroup group;
+
+        if (j.contains("name")) group.name = j["name"].get<std::string>();
+        if (j.contains("slaveAddress")) group.slaveAddress = j["slaveAddress"].get<uint8_t>();
+        if (j.contains("interval")) group.interval = j["interval"].get<uint32_t>();
+        if (j.contains("logConfig")) group.logConfig = JsonToDataLogConfig(j["logConfig"]);
+
+        if (j.contains("registerEntries")) {
+            for (const auto& entryJson : j["registerEntries"]) {
+                group.registerEntries.push_back(JsonToRegisterEntry(entryJson));
+            }
+        }
+
+        if (j.contains("singleTriggerEntries")) {
+            for (const auto& entryJson : j["singleTriggerEntries"]) {
+                group.singleTriggerEntries.push_back(JsonToSingleTriggerEntry(entryJson));
+            }
+        }
+
+        if (j.contains("periodicTriggerEntries")) {
+            for (const auto& entryJson : j["periodicTriggerEntries"]) {
+                group.periodicTriggerEntries.push_back(JsonToPeriodicTriggerEntry(entryJson));
+            }
+        }
+
+        return group;
+    }
+
+    // ============== Simple Êï∞ÊçÆÂ∫èÂàóÂåñ ==============
+
+    json ConfigurationService::SimpleDataToJson(const I2CSimpleAppData& data) {
+        json j;
+        j["baudRate"] = data.baudRate;
+
+        // ‰øùÂ≠òËæìÂÖ•ÁºìÂÜ≤Âå∫ÁöÑÂÜÖÂÆπÔºàÂ≠óÁ¨¶‰∏≤ÂΩ¢ÂºèÔºâ
+        j["slaveAddrInput"] = std::string(data.slaveAddrInput);
+        j["regAddrInput"] = std::string(data.regAddrInput);
+        j["lengthInput"] = std::string(data.lengthInput);
+        j["writeDataInput"] = std::string(data.writeDataInput);
+
+        // ‰∏ç‰øùÂ≠òËøêË°åÊó∂Áä∂ÊÄÅÔºàisConnected, isScanning, isOperating Á≠âÔºâ
+        // ‰∏ç‰øùÂ≠ò readDataÔºàËØªÂèñÁªìÊûúÊòØËøêË°åÊó∂Êï∞ÊçÆÔºâ
+        // ‰∏ç‰øùÂ≠ò scannedSlavesÔºàÊâ´ÊèèÁªìÊûúÊòØËøêË°åÊó∂Êï∞ÊçÆÔºâ
+        // ‰∏ç‰øùÂ≠ò activityIndicatorÔºàUIÁä∂ÊÄÅÔºâ
+
+        return j;
+    }
+
+    void ConfigurationService::JsonToSimpleData(const json& j, I2CSimpleAppData& data) {
+        if (j.contains("baudRate")) {
+            data.baudRate = j["baudRate"].get<uint32_t>();
+        }
+
+        // ÊÅ¢Â§çËæìÂÖ•ÁºìÂÜ≤Âå∫ÁöÑÂÜÖÂÆπ
+        if (j.contains("slaveAddrInput")) {
+            std::string str = j["slaveAddrInput"].get<std::string>();
+            std::strncpy(data.slaveAddrInput, str.c_str(), sizeof(data.slaveAddrInput) - 1);
+            data.slaveAddrInput[sizeof(data.slaveAddrInput) - 1] = '\0';
+        }
+
+        if (j.contains("regAddrInput")) {
+            std::string str = j["regAddrInput"].get<std::string>();
+            std::strncpy(data.regAddrInput, str.c_str(), sizeof(data.regAddrInput) - 1);
+            data.regAddrInput[sizeof(data.regAddrInput) - 1] = '\0';
+        }
+
+        if (j.contains("lengthInput")) {
+            std::string str = j["lengthInput"].get<std::string>();
+            std::strncpy(data.lengthInput, str.c_str(), sizeof(data.lengthInput) - 1);
+            data.lengthInput[sizeof(data.lengthInput) - 1] = '\0';
+        }
+
+        if (j.contains("writeDataInput")) {
+            std::string str = j["writeDataInput"].get<std::string>();
+            std::strncpy(data.writeDataInput, str.c_str(), sizeof(data.writeDataInput) - 1);
+            data.writeDataInput[sizeof(data.writeDataInput) - 1] = '\0';
+        }
+    }
+
+    // ============== Table Êï∞ÊçÆÂ∫èÂàóÂåñ ==============
+
+    json ConfigurationService::TableDataToJson(const I2CTableAppData& data) {
+        json j;
+        j["baudRate"] = data.baudRate;
+        j["currentGroupIndex"] = data.currentGroupIndex;
+
+        j["commandGroups"] = json::array();
+        for (const auto& group : data.commandGroups) {
+            j["commandGroups"].push_back(CommandGroupToJson(group));
+        }
+
+        return j;
+    }
+
+    void ConfigurationService::JsonToTableData(const json& j, I2CTableAppData& data) {
+        if (j.contains("baudRate")) data.baudRate = j["baudRate"].get<int>();
+        if (j.contains("currentGroupIndex")) data.currentGroupIndex = j["currentGroupIndex"].get<int>();
+
+        if (j.contains("commandGroups")) {
+            data.commandGroups.clear();
+            for (const auto& groupJson : j["commandGroups"]) {
+                data.commandGroups.push_back(JsonToCommandGroup(groupJson));
+            }
+        }
+
+        // Á°Æ‰øùËá≥Â∞ëÊúâ‰∏Ä‰∏™ÂëΩ‰ª§ÁªÑ
+        if (data.commandGroups.empty()) {
+            data.commandGroups.push_back(CommandGroup());
+        }
+
+        // Á°Æ‰øùÁ¥¢ÂºïÊúâÊïà
+        if (data.currentGroupIndex >= static_cast<int>(data.commandGroups.size())) {
+            data.currentGroupIndex = 0;
+        }
+    }
+
+    // ============== ÂÖ®Â±ÄÈÖçÁΩÆ‰øùÂ≠ò/Âä†ËΩΩ ==============
+
+    bool ConfigurationService::SaveGlobalConfiguration(
+        const I2CSimpleAppData& simpleData,
+        const I2CTableAppData& tableData,
+        const std::string& filePath)
+    {
         try {
             json j;
-
-            // ª˘±æ–≈œ¢
             j["version"] = "1.0";
-            j["type"] = "global_config";
+            j["simpleData"] = SimpleDataToJson(simpleData);
+            j["tableData"] = TableDataToJson(tableData);
 
-            // ºÚµ•≤Ÿ◊˜¥∞ø⁄ ˝æ›
-            j["simple"]["baud_rate"] = simpleData.baudRate;
-            j["simple"]["slave_addr"] = std::string(simpleData.slaveAddrInput);
-            j["simple"]["reg_addr"] = std::string(simpleData.regAddrInput);
-            j["simple"]["length"] = std::string(simpleData.lengthInput);
-            j["simple"]["write_data"] = std::string(simpleData.writeDataInput);
-            j["simple"]["operation_type"] = static_cast<int>(simpleData.operationType);
-
-            // ∂‡√¸¡Ó±Ì ˝æ›
-            j["table"]["current_group"] = tableData.currentGroupIndex;
-
-            json groups = json::array();
-            for (const auto& group : tableData.commandGroups) {
-                json g;
-                g["name"] = group.name;
-                g["slave_address"] = static_cast<int>(group.slaveAddress);
-                g["interval"] = group.interval;
-
-                // ºƒ¥Ê∆˜±Ì
-                json registers = json::array();
-                for (const auto& reg : group.registerEntries) {
-                    json r;
-                    r["reg_address"] = static_cast<int>(reg.regAddress);
-                    r["length"] = static_cast<int>(reg.length);
-                    r["description"] = reg.description;
-                    r["override_slave_addr"] = reg.overrideSlaveAddr;
-                    r["slave_address"] = static_cast<int>(reg.slaveAddress);
-                    registers.push_back(r);
-                }
-                g["registers"] = registers;
-
-                // µ•¥Œ¥•∑¢
-                json singles = json::array();
-                for (const auto& single : group.singleTriggerEntries) {
-                    json s;
-                    s["enabled"] = single.enabled;
-                    s["reg_address"] = static_cast<int>(single.regAddress);
-                    s["length"] = static_cast<int>(single.length);
-                    s["data"] = single.data;
-                    s["delay_ms"] = single.delayMs;
-                    s["type"] = static_cast<int>(single.type);
-                    s["button_name"] = single.buttonName;
-                    s["override_slave_addr"] = single.overrideSlaveAddr;
-                    s["slave_address"] = static_cast<int>(single.slaveAddress);
-                    singles.push_back(s);
-                }
-                g["singles"] = singles;
-
-                // ÷‹∆⁄¥•∑¢
-                json periodics = json::array();
-                for (const auto& periodic : group.periodicTriggerEntries) {
-                    json p;
-                    p["enabled"] = periodic.enabled;
-                    p["reg_address"] = static_cast<int>(periodic.regAddress);
-                    p["length"] = static_cast<int>(periodic.length);
-                    p["data"] = periodic.data;
-                    p["delay_ms"] = periodic.delayMs;
-                    p["type"] = static_cast<int>(periodic.type);
-                    p["button_name"] = periodic.buttonName;
-                    p["override_slave_addr"] = periodic.overrideSlaveAddr;
-                    p["slave_address"] = static_cast<int>(periodic.slaveAddress);
-                    p["alias"] = periodic.alias;
-                    p["formula"] = periodic.formula;
-                    periodics.push_back(p);
-                }
-                g["periodics"] = periodics;
-
-                groups.push_back(g);
-            }
-            j["table"]["groups"] = groups;
-
-            // –¥»ÎŒƒº˛
             std::ofstream file(filePath);
-            file << j.dump(4);
-            file.close();
+            if (!file.is_open()) {
+                m_lastError = "Êó†Ê≥ïÊâìÂºÄÊñá‰ª∂: " + filePath;
+                return false;
+            }
+
+            file << std::setw(4) << j << std::endl;
             return true;
         }
         catch (const std::exception& e) {
-            std::cerr << "Save failed: " << e.what() << std::endl;
+            m_lastError = std::string("‰øùÂ≠òÂ§±Ë¥•: ") + e.what();
             return false;
         }
     }
 
-    // º”‘ÿ»´æ÷≈‰÷√
-    bool ConfigurationService::LoadGlobalConfiguration(I2CSimpleAppData& simpleData, I2CTableAppData& tableData,
-        const std::string& filePath) {
+    bool ConfigurationService::LoadGlobalConfiguration(
+        I2CSimpleAppData& simpleData,
+        I2CTableAppData& tableData,
+        const std::string& filePath)
+    {
         try {
             std::ifstream file(filePath);
-            if (!file.is_open()) return false;
+            if (!file.is_open()) {
+                // Êñá‰ª∂‰∏çÂ≠òÂú®‰∏çÁÆóÈîôËØØÔºå‰ΩøÁî®ÈªòËÆ§ÈÖçÁΩÆ
+                m_lastError = "ÈÖçÁΩÆÊñá‰ª∂‰∏çÂ≠òÂú®Ôºå‰ΩøÁî®ÈªòËÆ§ÈÖçÁΩÆ";
+                return true;
+            }
 
             json j;
             file >> j;
-            file.close();
 
-            // —È÷§¿‡–Õ
-            if (j["type"] != "global_config") {
-                return false;
+            if (j.contains("simpleData")) {
+                JsonToSimpleData(j["simpleData"], simpleData);
             }
 
-            // ª÷∏¥ºÚµ•≤Ÿ◊˜¥∞ø⁄ ˝æ›
-            if (j.contains("simple")) {
-                simpleData.baudRate = j["simple"]["baud_rate"];
-                std::strncpy(simpleData.slaveAddrInput, j["simple"]["slave_addr"].get<std::string>().c_str(),
-                    sizeof(simpleData.slaveAddrInput) - 1);
-                std::strncpy(simpleData.regAddrInput, j["simple"]["reg_addr"].get<std::string>().c_str(),
-                    sizeof(simpleData.regAddrInput) - 1);
-                std::strncpy(simpleData.lengthInput, j["simple"]["length"].get<std::string>().c_str(),
-                    sizeof(simpleData.lengthInput) - 1);
-                std::strncpy(simpleData.writeDataInput, j["simple"]["write_data"].get<std::string>().c_str(),
-                    sizeof(simpleData.writeDataInput) - 1);
-                simpleData.operationType = static_cast<OperationType>(j["simple"]["operation_type"]);
-            }
-
-            // ª÷∏¥∂‡√¸¡Ó±Ì ˝æ›
-            tableData.commandGroups.clear();
-            if (j.contains("table")) {
-                tableData.currentGroupIndex = j["table"]["current_group"];
-
-                for (const auto& g : j["table"]["groups"]) {
-                    CommandGroup group;
-                    group.name = g["name"];
-                    group.slaveAddress = static_cast<uint8_t>(g["slave_address"]);
-                    group.interval = g["interval"];
-
-                    // ª÷∏¥ºƒ¥Ê∆˜±Ì
-                    for (const auto& r : g["registers"]) {
-                        RegisterEntry reg;
-                        reg.regAddress = static_cast<uint8_t>(r["reg_address"]);
-                        reg.length = static_cast<uint8_t>(r["length"]);
-                        reg.description = r["description"];
-                        reg.overrideSlaveAddr = r["override_slave_addr"];
-                        reg.slaveAddress = static_cast<uint8_t>(r["slave_address"]);
-                        group.registerEntries.push_back(reg);
-                    }
-
-                    // ª÷∏¥µ•¥Œ¥•∑¢
-                    for (const auto& s : g["singles"]) {
-                        SingleTriggerEntry single;
-                        single.enabled = s["enabled"];
-                        single.regAddress = static_cast<uint8_t>(s["reg_address"]);
-                        single.length = static_cast<uint8_t>(s["length"]);
-                        single.data = s["data"].get<std::vector<uint8_t>>();
-                        single.delayMs = s["delay_ms"];
-                        single.type = static_cast<CommandType>(s["type"]);
-                        single.buttonName = s["button_name"];
-                        single.overrideSlaveAddr = s["override_slave_addr"];
-                        single.slaveAddress = static_cast<uint8_t>(s["slave_address"]);
-                        group.singleTriggerEntries.push_back(single);
-                    }
-
-                    // ª÷∏¥÷‹∆⁄¥•∑¢
-                    for (const auto& p : g["periodics"]) {
-                        PeriodicTriggerEntry periodic;
-                        periodic.enabled = p["enabled"];
-                        periodic.regAddress = static_cast<uint8_t>(p["reg_address"]);
-                        periodic.length = static_cast<uint8_t>(p["length"]);
-                        periodic.data = p["data"].get<std::vector<uint8_t>>();
-                        periodic.delayMs = p["delay_ms"];
-                        periodic.type = static_cast<CommandType>(p["type"]);
-                        periodic.buttonName = p["button_name"];
-                        periodic.overrideSlaveAddr = p["override_slave_addr"];
-                        periodic.slaveAddress = static_cast<uint8_t>(p["slave_address"]);
-                        periodic.alias = p["alias"];
-                        periodic.formula = p["formula"];
-                        periodic.parseConfigured = !periodic.alias.empty() || !periodic.formula.empty();
-                        group.periodicTriggerEntries.push_back(periodic);
-                    }
-
-                    tableData.commandGroups.push_back(group);
-                }
+            if (j.contains("tableData")) {
+                JsonToTableData(j["tableData"], tableData);
             }
 
             return true;
         }
         catch (const std::exception& e) {
-            std::cerr << "Load failed: " << e.what() << std::endl;
+            m_lastError = std::string("Âä†ËΩΩÂ§±Ë¥•: ") + e.what();
             return false;
         }
     }
 
-    // ±£¥Êµ•∏ˆ√¸¡Ó±Ì
-    bool ConfigurationService::SaveCommandGroup(const I2CTableAppData& tableData, int groupIndex, const std::string& filePath) {
+    // ============== ÂëΩ‰ª§ÁªÑÂØºÂá∫/ÂØºÂÖ• ==============
+
+    bool ConfigurationService::ExportCommandGroup(
+        const I2CTableAppData& data,
+        int groupIndex,
+        const std::string& filePath)
+    {
         try {
-            if (groupIndex < 0 || groupIndex >= static_cast<int>(tableData.commandGroups.size())) {
+            if (groupIndex < 0 || groupIndex >= static_cast<int>(data.commandGroups.size())) {
+                m_lastError = "Êó†ÊïàÁöÑÂëΩ‰ª§ÁªÑÁ¥¢Âºï";
                 return false;
             }
-
-            const auto& group = tableData.commandGroups[groupIndex];
 
             json j;
             j["version"] = "1.0";
             j["type"] = "command_group";
-            j["name"] = group.name;
-            j["slave_address"] = static_cast<int>(group.slaveAddress);
-            j["interval"] = group.interval;
+            j["group"] = CommandGroupToJson(data.commandGroups[groupIndex]);
 
-            // ºƒ¥Ê∆˜±Ì
-            json registers = json::array();
-            for (const auto& reg : group.registerEntries) {
-                json r;
-                r["reg_address"] = static_cast<int>(reg.regAddress);
-                r["length"] = static_cast<int>(reg.length);
-                r["description"] = reg.description;
-                r["override_slave_addr"] = reg.overrideSlaveAddr;
-                r["slave_address"] = static_cast<int>(reg.slaveAddress);
-                registers.push_back(r);
-            }
-            j["registers"] = registers;
-
-            // µ•¥Œ¥•∑¢
-            json singles = json::array();
-            for (const auto& single : group.singleTriggerEntries) {
-                json s;
-                s["enabled"] = single.enabled;
-                s["reg_address"] = static_cast<int>(single.regAddress);
-                s["length"] = static_cast<int>(single.length);
-                s["data"] = single.data;
-                s["delay_ms"] = single.delayMs;
-                s["type"] = static_cast<int>(single.type);
-                s["button_name"] = single.buttonName;
-                s["override_slave_addr"] = single.overrideSlaveAddr;
-                s["slave_address"] = static_cast<int>(single.slaveAddress);
-                singles.push_back(s);
-            }
-            j["singles"] = singles;
-
-            // ÷‹∆⁄¥•∑¢
-            json periodics = json::array();
-            for (const auto& periodic : group.periodicTriggerEntries) {
-                json p;
-
-                p["enabled"] = periodic.enabled;
-                p["reg_address"] = static_cast<int>(periodic.regAddress);
-                p["length"] = static_cast<int>(periodic.length);
-                p["data"] = periodic.data;
-                p["delay_ms"] = periodic.delayMs;
-                p["type"] = static_cast<int>(periodic.type);
-                p["button_name"] = periodic.buttonName;
-                p["override_slave_addr"] = periodic.overrideSlaveAddr;
-                p["slave_address"] = static_cast<int>(periodic.slaveAddress);
-                p["alias"] = periodic.alias;
-                p["formula"] = periodic.formula;
-
-                periodics.push_back(p);
-            }
-            j["periodics"] = periodics;
-
-            // –¥»ÎŒƒº˛
             std::ofstream file(filePath);
-            file << j.dump(4);
-            file.close();
+            if (!file.is_open()) {
+                m_lastError = "Êó†Ê≥ïÊâìÂºÄÊñá‰ª∂: " + filePath;
+                return false;
+            }
 
+            file << std::setw(4) << j << std::endl;
             return true;
         }
         catch (const std::exception& e) {
-            std::cerr << "Save command group failed: " << e.what() << std::endl;
+            m_lastError = std::string("ÂØºÂá∫Â§±Ë¥•: ") + e.what();
             return false;
         }
     }
 
-    // º”‘ÿµ•∏ˆ√¸¡Ó±Ì
-    bool ConfigurationService::LoadCommandGroup(I2CTableAppData& tableData, const std::string& filePath, bool appendAsNew) {
+    bool ConfigurationService::ImportCommandGroup(
+        I2CTableAppData& data,
+        const std::string& filePath,
+        bool asNewGroup)
+    {
         try {
             std::ifstream file(filePath);
-            if (!file.is_open()) return false;
-
-            json j;
-            file >> j;
-            file.close();
-
-            // —È÷§¿‡–Õ
-            if (j["type"] != "command_group") {
+            if (!file.is_open()) {
+                m_lastError = "Êó†Ê≥ïÊâìÂºÄÊñá‰ª∂: " + filePath;
                 return false;
             }
 
-            CommandGroup group;
-            group.name = j["name"];
-            group.slaveAddress = static_cast<uint8_t>(j["slave_address"]);
-            group.interval = j["interval"];
+            json j;
+            file >> j;
 
-            // ª÷∏¥ºƒ¥Ê∆˜±Ì
-            for (const auto& r : j["registers"]) {
-                RegisterEntry reg;
-                reg.regAddress = static_cast<uint8_t>(r["reg_address"]);
-                reg.length = static_cast<uint8_t>(r["length"]);
-                reg.description = r["description"];
-                reg.overrideSlaveAddr = r["override_slave_addr"];
-                reg.slaveAddress = static_cast<uint8_t>(r["slave_address"]);
-                group.registerEntries.push_back(reg);
+            if (!j.contains("group")) {
+                m_lastError = "Êó†ÊïàÁöÑÂëΩ‰ª§ÁªÑÊñá‰ª∂";
+                return false;
             }
 
-            // ª÷∏¥µ•¥Œ¥•∑¢
-            for (const auto& s : j["singles"]) {
-                SingleTriggerEntry single;
-                single.enabled = s["enabled"];
-                single.regAddress = static_cast<uint8_t>(s["reg_address"]);
-                single.length = static_cast<uint8_t>(s["length"]);
-                single.data = s["data"].get<std::vector<uint8_t>>();
-                single.delayMs = s["delay_ms"];
-                single.type = static_cast<CommandType>(s["type"]);
-                single.buttonName = s["button_name"];
-                single.overrideSlaveAddr = s["override_slave_addr"];
-                single.slaveAddress = static_cast<uint8_t>(s["slave_address"]);
-                group.singleTriggerEntries.push_back(single);
-            }
+            CommandGroup group = JsonToCommandGroup(j["group"]);
 
-            // ª÷∏¥÷‹∆⁄¥•∑¢
-            for (const auto& p : j["periodics"]) {
-                PeriodicTriggerEntry periodic;
-                periodic.enabled = p["enabled"];
-                periodic.regAddress = static_cast<uint8_t>(p["reg_address"]);
-                periodic.length = static_cast<uint8_t>(p["length"]);
-                periodic.data = p["data"].get<std::vector<uint8_t>>();
-                periodic.delayMs = p["delay_ms"];
-                periodic.type = static_cast<CommandType>(p["type"]);
-                periodic.buttonName = p["button_name"];
-                periodic.overrideSlaveAddr = p["override_slave_addr"];
-                periodic.slaveAddress = static_cast<uint8_t>(p["slave_address"]);
-                periodic.alias = p["alias"];
-                periodic.formula = p["formula"];
-                periodic.parseConfigured = !periodic.alias.empty() || !periodic.formula.empty();
-
-                group.periodicTriggerEntries.push_back(periodic);
-            }
-
-            if (appendAsNew) {
-                // ÃÌº”Œ™–¬µƒ√¸¡Ó◊È
-                tableData.commandGroups.push_back(group);
-                tableData.currentGroupIndex = static_cast<int>(tableData.commandGroups.size()) - 1;
+            if (asNewGroup) {
+                data.commandGroups.push_back(group);
+                data.currentGroupIndex = static_cast<int>(data.commandGroups.size()) - 1;
             }
             else {
-                // ÃÊªªµ±«∞√¸¡Ó◊È
-                if (tableData.currentGroupIndex >= 0 && tableData.currentGroupIndex < static_cast<int>(tableData.commandGroups.size())) {
-                    tableData.commandGroups[tableData.currentGroupIndex] = group;
+                if (data.currentGroupIndex >= 0 &&
+                    data.currentGroupIndex < static_cast<int>(data.commandGroups.size())) {
+                    data.commandGroups[data.currentGroupIndex] = group;
                 }
             }
 
             return true;
         }
         catch (const std::exception& e) {
-            std::cerr << "Load command group failed: " << e.what() << std::endl;
+            m_lastError = std::string("ÂØºÂÖ•Â§±Ë¥•: ") + e.what();
             return false;
         }
     }
-}
+
+} // namespace I2CDebugger

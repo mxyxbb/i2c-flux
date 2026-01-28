@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "i2c_command.h"
 #include "../ui/widgets/activity_indicator.h"

@@ -1,4 +1,6 @@
+﻿#include "../models/i2c_table_app.h"
 #include "i2c_table_viewmodel.h"
+#include "../services/data_logger.h"
 #include "../services/expression_parser.h"  // 新增：引入表达式解析器
 #include <fstream>
 #include <sstream>
@@ -8,7 +10,8 @@ namespace I2CDebugger {
 
     I2CTableViewModel::I2CTableViewModel(std::shared_ptr<HardwareService> hardwareService)
         : m_hardwareService(hardwareService)
-        , m_expressionParser(std::make_unique<ExpressionParser>())  // 新增：初始化表达式解析器
+        , m_expressionParser(std::make_unique<ExpressionParser>())
+        , m_dataLogger(std::make_unique<DataLogger>())  // 新增
     {
         // 初始化默认命令组
         CommandGroup group1;
@@ -35,6 +38,25 @@ namespace I2CDebugger {
         group2.name = "example group 2";
         group2.slaveAddress = 0x51;
         m_data.commandGroups.push_back(group2);
+    }
+
+    I2CTableViewModel::~I2CTableViewModel() {
+        // 确保停止日志记录
+        if (m_dataLogger && m_dataLogger->IsActive()) {
+            m_dataLogger->Stop();
+        }
+    }
+
+    // ============== 数据日志方法实现 ==============
+
+    bool I2CTableViewModel::StartDataLogging(const std::string& filePath) {
+        auto& entries = GetCurrentGroup1().periodicTriggerEntries;
+        m_logConfig.filePath = filePath;
+        return m_dataLogger->Start(filePath, entries, m_logConfig);
+    }
+
+    void I2CTableViewModel::StopDataLogging() {
+        m_dataLogger->Stop();
     }
 
     void I2CTableViewModel::Connect()
@@ -97,12 +119,12 @@ namespace I2CDebugger {
 
     //导出当前命令表
     bool I2CTableViewModel::ExportGroup(const std::string& filePath) {
-        return m_configService->SaveCommandGroup(m_data, m_data.currentGroupIndex, filePath);
+        return m_configService->ExportCommandGroup(m_data, m_data.currentGroupIndex, filePath);
     }
 
     // 导入命令表（作为新的命令组添加）
     bool I2CTableViewModel::ImportGroup(const std::string& filePath) {
-        return m_configService->LoadCommandGroup(m_data, filePath, true);
+        return m_configService->ImportCommandGroup(m_data, filePath, true);
     }
 
     //寄存器表操作
@@ -431,58 +453,95 @@ namespace I2CDebugger {
             entry.errorCount = 0;
         }
     }
+    // ============== 寄存器表解析方法 ==============
 
-    // ============== 新增：解析相关方法 ==============
-    void I2CTableViewModel::UpdateParsedValue(size_t entryIndex)
-    {
+    void I2CTableViewModel::UpdateRegisterParsedValue(size_t entryIndex) {
         auto& group = GetCurrentGroup1();
-        auto& entries = group.periodicTriggerEntries;
+        if (entryIndex >= group.registerEntries.size()) return;
 
-        if (entryIndex >= entries.size()) {  // size_t 不需要检查 < 0
+        auto& entry = group.registerEntries[entryIndex];
+        auto& config = entry.parseConfig;
+
+        if (!config.enabled || config.readFormula.empty()) {
+            config.parseSuccess = false;
             return;
         }
 
-        auto& entry = entries[entryIndex];
-
-        // 检查是否配置了解析
-        if (!entry.parseConfigured || entry.formula.empty()) {
-            entry.parseSuccess = false;
-            return;
-        }
-
-        // 检查数据是否为空
         if (entry.data.empty()) {
-            entry.parseSuccess = false;
-            entry.lastError = "数据为空";
+            config.parseSuccess = false;
+            config.lastError = "数据为空";
             return;
         }
 
-        // 调用表达式解析器
-        auto result = m_expressionParser->EvaluateReadFormula(entry.formula, entry.data);
+        auto result = m_expressionParser->EvaluateReadFormula(
+            config.readFormula, entry.data);
 
-        entry.parsedValue = result.value;
-        entry.parseSuccess = result.success;
+        config.parsedValue = result.value;
+        config.parseSuccess = result.success;
         if (!result.success) {
-            entry.lastError = result.errorMsg;
+            config.lastError = result.errorMsg;
         }
     }
 
-    void I2CTableViewModel::UpdateRawFromParsedValue(size_t entryIndex, double newValue)
-    {
+    ParseConfig& I2CTableViewModel::GetRegisterParseConfig(size_t entryIndex) {
         auto& group = GetCurrentGroup1();
-        auto& entries = group.periodicTriggerEntries;
+        static ParseConfig emptyConfig;
+        if (entryIndex < group.registerEntries.size()) {
+            return group.registerEntries[entryIndex].parseConfig;
+        }
+        return emptyConfig;
+    }
 
-        if (entryIndex >= entries.size()) {  // size_t 不需要检查 < 0
+    void I2CTableViewModel::SetRegisterParseConfig(size_t entryIndex, const ParseConfig& config) {
+        auto& group = GetCurrentGroup1();
+        if (entryIndex < group.registerEntries.size()) {
+            group.registerEntries[entryIndex].parseConfig = config;
+            UpdateRegisterParsedValue(entryIndex);
+        }
+    }
+
+    // ============== 单次触发解析方法 ==============
+
+    void I2CTableViewModel::UpdateSingleParsedValue(size_t entryIndex) {
+        auto& group = GetCurrentGroup1();
+        if (entryIndex >= group.singleTriggerEntries.size()) return;
+
+        auto& entry = group.singleTriggerEntries[entryIndex];
+        auto& config = entry.parseConfig;
+
+        if (!config.enabled || config.readFormula.empty()) {
+            config.parseSuccess = false;
             return;
         }
 
-        auto& entry = entries[entryIndex];
+        if (entry.data.empty()) {
+            config.parseSuccess = false;
+            config.lastError = "数据为空";
+            return;
+        }
+
+        auto result = m_expressionParser->EvaluateReadFormula(
+            config.readFormula, entry.data);
+
+        config.parsedValue = result.value;
+        config.parseSuccess = result.success;
+        if (!result.success) {
+            config.lastError = result.errorMsg;
+        }
+    }
+
+    void I2CTableViewModel::UpdateSingleRawFromParsedValue(size_t entryIndex, double newValue) {
+        auto& group = GetCurrentGroup1();
+        if (entryIndex >= group.singleTriggerEntries.size()) return;
+
+        auto& entry = group.singleTriggerEntries[entryIndex];
+        auto& config = entry.parseConfig;
 
         bool success = false;
         std::string errorMsg;
 
         auto rawData = m_expressionParser->EvaluateWriteFormula(
-            entry.writeFormula,
+            config.writeFormula,
             newValue,
             entry.length,
             success,
@@ -490,39 +549,110 @@ namespace I2CDebugger {
 
         if (success) {
             entry.data = rawData;
-            entry.parsedValue = newValue;
-            entry.parseSuccess = true;
+            config.parsedValue = newValue;
+            config.parseSuccess = true;
         }
         else {
-            entry.lastError = errorMsg;
-            entry.parseSuccess = false;
+            config.lastError = errorMsg;
+            config.parseSuccess = false;
         }
     }
-    // 新增方法实现
-    void I2CTableViewModel::SetParseConfig(size_t entryIndex, const ParseConfig& config) {
-        auto& group = GetCurrentGroup1();  // 改为非 const 版本
-        if (m_data.currentTab == TabType::PeriodicTrigger &&
-            entryIndex < group.periodicTriggerEntries.size()) {
-            group.periodicTriggerEntries[entryIndex].parseConfig = config;
-            // 立即更新解析值
-            UpdateParsedValue(entryIndex);
+
+    ParseConfig& I2CTableViewModel::GetSingleParseConfig(size_t entryIndex) {
+        auto& group = GetCurrentGroup1();
+        static ParseConfig emptyConfig;
+        if (entryIndex < group.singleTriggerEntries.size()) {
+            return group.singleTriggerEntries[entryIndex].parseConfig;
+        }
+        return emptyConfig;
+    }
+
+    void I2CTableViewModel::SetSingleParseConfig(size_t entryIndex, const ParseConfig& config) {
+        auto& group = GetCurrentGroup1();
+        if (entryIndex < group.singleTriggerEntries.size()) {
+            group.singleTriggerEntries[entryIndex].parseConfig = config;
+            UpdateSingleParsedValue(entryIndex);
+        }
+    }
+
+    // ============== 周期触发解析方法（更新） ==============
+
+    void I2CTableViewModel::UpdateParsedValue(size_t entryIndex) {
+        auto& group = GetCurrentGroup1();
+        if (entryIndex >= group.periodicTriggerEntries.size()) return;
+
+        auto& entry = group.periodicTriggerEntries[entryIndex];
+        auto& config = entry.parseConfig;
+
+        if (!config.enabled || config.readFormula.empty()) {
+            config.parseSuccess = false;
+            return;
+        }
+
+        if (entry.data.empty()) {
+            config.parseSuccess = false;
+            config.lastError = "数据为空";
+            return;
+        }
+
+        auto result = m_expressionParser->EvaluateReadFormula(
+            config.readFormula, entry.data);
+
+        config.parsedValue = result.value;
+        config.parseSuccess = result.success;
+        if (!result.success) {
+            config.lastError = result.errorMsg;
+        }
+    }
+
+    void I2CTableViewModel::UpdateRawFromParsedValue(size_t entryIndex, double newValue) {
+        auto& group = GetCurrentGroup1();
+        if (entryIndex >= group.periodicTriggerEntries.size()) return;
+
+        auto& entry = group.periodicTriggerEntries[entryIndex];
+        auto& config = entry.parseConfig;
+
+        bool success = false;
+        std::string errorMsg;
+
+        auto rawData = m_expressionParser->EvaluateWriteFormula(
+            config.writeFormula,
+            newValue,
+            entry.length,
+            success,
+            errorMsg);
+
+        if (success) {
+            entry.data = rawData;
+            config.parsedValue = newValue;
+            config.parseSuccess = true;
+        }
+        else {
+            config.lastError = errorMsg;
+            config.parseSuccess = false;
         }
     }
 
     ParseConfig& I2CTableViewModel::GetParseConfig(size_t entryIndex) {
-        auto& group = GetCurrentGroup1();  // 改为非 const 版本
+        auto& group = GetCurrentGroup1();
         static ParseConfig emptyConfig;
-        if (m_data.currentTab == TabType::PeriodicTrigger &&
-            entryIndex < group.periodicTriggerEntries.size()) {
+        if (entryIndex < group.periodicTriggerEntries.size()) {
             return group.periodicTriggerEntries[entryIndex].parseConfig;
         }
         return emptyConfig;
     }
 
+    void I2CTableViewModel::SetParseConfig(size_t entryIndex, const ParseConfig& config) {
+        auto& group = GetCurrentGroup1();
+        if (entryIndex < group.periodicTriggerEntries.size()) {
+            group.periodicTriggerEntries[entryIndex].parseConfig = config;
+            UpdateParsedValue(entryIndex);
+        }
+    }
+
     std::string I2CTableViewModel::GetFormulaHelp() const {
         return ExpressionParser::GetFormulaHelp();
     }
-
     // ============== 新增结束 ==============
 
     uint8_t I2CTableViewModel::ParseHexInput(const char* input) const
@@ -577,13 +707,11 @@ namespace I2CDebugger {
     {
         if (packet.controlId == 0) return;
 
-        // 触发活动指示灯
         m_data.activityIndicator.Trigger();
-
         auto& group = GetCurrentGroup1();
 
         switch (packet.controlId) {
-        case 1: {
+        case 1: {  // 寄存器表
             if (packet.commandId < group.registerEntries.size()) {
                 auto& entry = group.registerEntries[packet.commandId];
                 entry.lastSuccess = packet.success;
@@ -591,6 +719,11 @@ namespace I2CDebugger {
                 if (packet.success) {
                     entry.data = packet.rawData;
                     entry.lastError.clear();
+
+                    // 新增：读取成功后自动更新解析值
+                    if (entry.parseConfig.enabled && !entry.parseConfig.readFormula.empty()) {
+                        UpdateRegisterParsedValue(packet.commandId);
+                    }
                 }
                 else {
                     entry.lastError = packet.errorMsg;
@@ -601,7 +734,7 @@ namespace I2CDebugger {
             }
             break;
         }
-        case 2: {
+        case 2: {  // 单次触发
             if (packet.commandId < group.singleTriggerEntries.size()) {
                 auto& entry = group.singleTriggerEntries[packet.commandId];
                 entry.lastSuccess = packet.success;
@@ -609,6 +742,11 @@ namespace I2CDebugger {
                 if (packet.success && !packet.rawData.empty()) {
                     entry.data = packet.rawData;
                     entry.lastError.clear();
+
+                    // 新增：读取成功后自动更新解析值
+                    if (entry.parseConfig.enabled && !entry.parseConfig.readFormula.empty()) {
+                        UpdateSingleParsedValue(packet.commandId);
+                    }
                 }
                 else if (!packet.success) {
                     entry.lastError = packet.errorMsg;
@@ -619,7 +757,7 @@ namespace I2CDebugger {
             }
             break;
         }
-        case 3: {
+        case 3: {  // 周期触发
             if (packet.commandId < group.periodicTriggerEntries.size()) {
                 auto& entry = group.periodicTriggerEntries[packet.commandId];
                 entry.lastSuccess = packet.success;
@@ -628,15 +766,23 @@ namespace I2CDebugger {
                     entry.data = packet.rawData;
                     entry.lastError.clear();
 
-                    // ✅ 新增：读取成功后自动更新解析值
-                    if (entry.parseConfigured && !entry.formula.empty()) {
-                        UpdateParsedValue((packet.commandId));
+                    // 读取成功后自动更新解析值
+                    if (entry.parseConfig.enabled && !entry.parseConfig.readFormula.empty()) {
+                        UpdateParsedValue(packet.commandId);
                     }
+
                 }
                 else if (!packet.success) {
                     entry.lastError = packet.errorMsg;
                     if (packet.errorType == ErrorType::SlaveNotResponse) {
                         entry.errorCount++;
+                    }
+                }
+
+                if (packet.commandId >= group.periodicTriggerEntries.size() - 1) {
+                    // 新增：记录日志
+                    if (m_dataLogger->IsActive()) {
+                        m_dataLogger->LogPeriodicRow(group.periodicTriggerEntries);
                     }
                 }
             }

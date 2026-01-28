@@ -103,14 +103,14 @@
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..;..\..\backends;D:\cpp\ImGuiApps\MyApplica_gemini3pro\examples\example_win32_directx11;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>..\..;..\..\backends;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/utf-8 /bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;dxgi.lib;SLABHIDtoSMBus.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(DXSDK_DIR)/Lib/x64;%(AdditionalLibraryDirectories);$(ProjectDir)\hardware\SMBus\CP2112</AdditionalLibraryDirectories>
-      <SubSystem>Console</SubSystem>
+      <AdditionalLibraryDirectories>$(DXSDK_DIR)/Lib/x64;%(AdditionalLibraryDirectories);$(ProjectDir)hardware/SMBus/CP2112</AdditionalLibraryDirectories>
+      <SubSystem>Windows</SubSystem>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y /d  "$(ProjectDir)External\*.dll" "$(OutDir)"</Command>
@@ -155,7 +155,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;dxgi.lib;SLABHIDtoSMBus.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(DXSDK_DIR)/Lib/x64;%(AdditionalLibraryDirectories);$(ProjectDir)\hardware\SMBus\CP2112</AdditionalLibraryDirectories>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y /d  "$(ProjectDir)External\*.dll" "$(OutDir)"</Command>
@@ -173,6 +173,7 @@
     <ClInclude Include="core\models\i2c_simple_app.h" />
     <ClInclude Include="core\models\i2c_table_app.h" />
     <ClInclude Include="core\services\configuration_service.h" />
+    <ClInclude Include="core\services\data_logger.h" />
     <ClInclude Include="core\services\expression_parser.h" />
     <ClInclude Include="core\services\hardware_service.h" />
     <ClInclude Include="core\UI.h" />
@@ -202,6 +203,7 @@
     <ClCompile Include="core\models\i2c_simple_app.cpp" />
     <ClCompile Include="core\models\i2c_table_app.cpp" />
     <ClCompile Include="core\services\configuration_service.cpp" />
+    <ClCompile Include="core\services\data_logger.cpp" />
     <ClCompile Include="core\services\expression_parser.cpp" />
     <ClCompile Include="core\services\hardware_service.cpp" />
     <ClCompile Include="core\UI.cpp" />

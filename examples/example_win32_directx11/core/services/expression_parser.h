@@ -1,11 +1,11 @@
-#pragma once
+ï»¿#pragma once
 
 #include <string>
 #include <vector>
 #include <memory>
 #include <cstdint>
 
-// ExprTK ±àÒë½ÏÂı£¬Ê¹ÓÃÇ°ÏòÉùÃ÷
+// ExprTK ç¼–è¯‘è¾ƒæ…¢ï¼Œä½¿ç”¨å‰å‘å£°æ˜
 namespace exprtk {
     template <typename T> class expression;
     template <typename T> class symbol_table;
@@ -14,7 +14,7 @@ namespace exprtk {
 
 namespace I2CDebugger {
 
-    // ½âÎö½á¹û
+    // è§£æç»“æœ
     struct ParseResult {
         bool success = false;
         double value = 0.0;
@@ -26,37 +26,37 @@ namespace I2CDebugger {
         ExpressionParser();
         ~ExpressionParser();
 
-        // Ê¹ÓÃ¶ÁÈ¡¹«Ê½½«Ô­Ê¼×Ö½Ú×ª»»ÎªÊ®½øÖÆÖµ
-        // formula: ¹«Ê½×Ö·û´®£¬ÀıÈç "(b1 << 8) | b0"
-        // rawData: Ô­Ê¼×Ö½ÚÊı¾İ
+        // ä½¿ç”¨è¯»å–å…¬å¼å°†åŸå§‹å­—èŠ‚è½¬æ¢ä¸ºåè¿›åˆ¶å€¼
+        // formula: å…¬å¼å­—ç¬¦ä¸²ï¼Œä¾‹å¦‚ "(b1 << 8) | b0"
+        // rawData: åŸå§‹å­—èŠ‚æ•°æ®
         ParseResult EvaluateReadFormula(const std::string& formula,
             const std::vector<uint8_t>& rawData);
 
-        // Ê¹ÓÃĞ´Èë¹«Ê½½«Ê®½øÖÆÖµ×ª»»ÎªÔ­Ê¼×Ö½Ú
-        // formula: ¹«Ê½×Ö·û´®
-        // value: Ê®½øÖÆÖµ
-        // byteCount: Êä³ö×Ö½ÚÊı
+        // ä½¿ç”¨å†™å…¥å…¬å¼å°†åè¿›åˆ¶å€¼è½¬æ¢ä¸ºåŸå§‹å­—èŠ‚
+        // formula: å…¬å¼å­—ç¬¦ä¸²
+        // value: åè¿›åˆ¶å€¼
+        // byteCount: è¾“å‡ºå­—èŠ‚æ•°
         std::vector<uint8_t> EvaluateWriteFormula(const std::string& formula,
             double value,
             size_t byteCount,
             bool& success,
             std::string& errorMsg);
 
-        // ÑéÖ¤¹«Ê½ÊÇ·ñÓĞĞ§
+        // éªŒè¯å…¬å¼æ˜¯å¦æœ‰æ•ˆ
         bool ValidateFormula(const std::string& formula, std::string& errorMsg);
 
-        // »ñÈ¡¹«Ê½°ïÖúÎÄ±¾
+        // è·å–å…¬å¼å¸®åŠ©æ–‡æœ¬
         static std::string GetFormulaHelp();
 
     private:
-        // ÉèÖÃ×Ö½Ú±äÁ¿ b0, b1, b2... ºÍ w0, w1...
+        // è®¾ç½®å­—èŠ‚å˜é‡ b0, b1, b2... å’Œ w0, w1...
         void SetByteVariables(const std::vector<uint8_t>& rawData);
 
-        // ×Ö½Ú±äÁ¿Êı×é (×î¶àÖ§³Ö32×Ö½Ú)
+        // å­—èŠ‚å˜é‡æ•°ç»„ (æœ€å¤šæ”¯æŒ32å­—èŠ‚)
         double m_bytes[32] = { 0 };
-        double m_words[16] = { 0 };  // Ğ¡¶Ë×Ö
-        double m_value = 0;        // ÓÃÓÚĞ´Èë¹«Ê½µÄÊäÈëÖµ
-        double m_result = 0;       // ½á¹û±äÁ¿
+        double m_words[16] = { 0 };  // å°ç«¯å­—
+        double m_value = 0;        // ç”¨äºå†™å…¥å…¬å¼çš„è¾“å…¥å€¼
+        double m_result = 0;       // ç»“æœå˜é‡
     };
 
 }

@@ -1,4 +1,4 @@
-// core/models/i2c_table_app.cpp - 表格命令窗口数据处理
+﻿// core/models/i2c_table_app.cpp - 表格命令窗口数据处理
 #include "i2c_table_app.h"
 
 namespace I2CDebugger {

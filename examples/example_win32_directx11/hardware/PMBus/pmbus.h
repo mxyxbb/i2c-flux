@@ -1,4 +1,4 @@
-//pmbus.h - PMBus C++ 封装类头文件
+﻿//pmbus.h - PMBus C++ 封装类头文件
 #pragma once
 
 #include <cstdint>

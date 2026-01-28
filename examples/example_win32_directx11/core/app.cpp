@@ -1,4 +1,4 @@
-#include "app.h"
+﻿#include "app.h"
 #include "viewmodels/i2c_simple_viewmodel.h"
 #include "viewmodels/i2c_table_viewmodel.h"
 #include "ui/views/main_window.h"
@@ -131,7 +131,8 @@ namespace I2CDebugger {
                 m_mainWindow = std::make_unique<MainWindow>(m_simpleViewModel, m_tableViewModel);
 
                 // 初始化配置服务
-                m_configService = ConfigurationService::GetInstance();
+                // 修改后（正确）
+                m_configService = std::make_shared<ConfigurationService>();
 
                 // 设置全局配置文件路径
                 m_globalConfigPath = GetExecutableDirectory() + "i2c_debugger_config.json";

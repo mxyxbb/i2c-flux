@@ -1,4 +1,4 @@
-#include "i2c_simple_viewmodel.h"
+﻿#include "i2c_simple_viewmodel.h"
 #include <sstream>
 #include <iomanip>
 

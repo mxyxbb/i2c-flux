@@ -15,6 +15,8 @@
 // [App] 引入我们的业务核心
 #include "core/app.h"
 
+#pragma comment(linker, "/subsystem:windows /entry:mainCRTStartup")
+
 // User created LoadFont funtion.
 void LoadFont(void);
 

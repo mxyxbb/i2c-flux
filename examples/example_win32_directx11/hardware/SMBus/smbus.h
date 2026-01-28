@@ -1,4 +1,4 @@
-#ifndef SMBUS_H
+﻿#ifndef SMBUS_H
 #define SMBUS_H
 
 #ifdef __cplusplus

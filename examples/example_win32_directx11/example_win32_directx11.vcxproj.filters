@@ -45,6 +45,7 @@
     <ClInclude Include="core\ui\widgets\activity_indicator.h" />
     <ClInclude Include="core\services\configuration_service.h" />
     <ClInclude Include="core\services\expression_parser.h" />
+    <ClInclude Include="core\services\data_logger.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\imgui.cpp">
@@ -87,6 +88,7 @@
     <ClCompile Include="core\models\i2c_table_app.cpp" />
     <ClCompile Include="core\services\configuration_service.cpp" />
     <ClCompile Include="core\services\expression_parser.cpp" />
+    <ClCompile Include="core\services\data_logger.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\README.txt" />
