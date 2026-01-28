@@ -46,6 +46,7 @@
     <ClInclude Include="core\services\configuration_service.h" />
     <ClInclude Include="core\services\expression_parser.h" />
     <ClInclude Include="core\services\data_logger.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\imgui.cpp">
@@ -98,5 +99,14 @@
     <None Include="..\..\misc\debuggers\imgui.natstepfilter">
       <Filter>imgui</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="C:\Users\25000421\Downloads\combined.ico" />
+    <Image Include="C:\Users\25000421\Downloads\combined (1).ico" />
+    <Image Include="C:\Users\25000421\Downloads\combined (2).ico" />
+    <Image Include="C:\Users\25000421\Downloads\combined (3).ico" />
   </ItemGroup>
 </Project>

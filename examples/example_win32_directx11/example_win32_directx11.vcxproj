@@ -189,6 +189,7 @@
     <ClInclude Include="hardware\SMBus\CP2112\SLABCP2112.h" />
     <ClInclude Include="hardware\SMBus\smbus.h" />
     <ClInclude Include="hardware\SMBus\types.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\imgui.cpp" />
@@ -224,6 +225,15 @@
     <None Include="..\..\misc\debuggers\imgui.natstepfilter" />
     <None Include="..\..\misc\debuggers\imgui.natvis" />
     <None Include="..\README.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="C:\Users\25000421\Downloads\combined (1).ico" />
+    <Image Include="C:\Users\25000421\Downloads\combined (2).ico" />
+    <Image Include="C:\Users\25000421\Downloads\combined (3).ico" />
+    <Image Include="C:\Users\25000421\Downloads\combined.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
