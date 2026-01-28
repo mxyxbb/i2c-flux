@@ -187,21 +187,8 @@ namespace I2CDebugger {
                     m_showLoadGlobalPopup = true;
                     std::strncpy(m_loadGlobalPathBuffer, "", sizeof(m_loadGlobalPathBuffer));
                 }
-                ImGui::Separator();
-                if (ImGui::MenuItem("退出", "Alt+F4")) {
-                    // 退出前自动保存
-                    SaveGlobalConfig();
-                }
                 ImGui::EndMenu();
             }
-
-            if (ImGui::BeginMenu("帮助")) {
-                if (ImGui::MenuItem("关于")) {
-                    // 显示关于对话框
-                }
-                ImGui::EndMenu();
-            }
-
             ImGui::EndMenuBar();
         }
 
