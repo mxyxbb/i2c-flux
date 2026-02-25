@@ -88,7 +88,13 @@ namespace I2CDebugger {
         }
 
         ImGui::SameLine();
-        if (ImGui::Button("添加")) { m_viewModel->AddGroup(); }
+        if (ImGui::Button("添加"))
+        {
+            m_viewModel->AddGroup();
+            auto& group = m_viewModel->GetCurrentGroup1();
+            group.slaveAddress = m_viewModel->ParseHexInput(m_slaveAddrInput);
+            group.interval = static_cast<uint32_t>(std::stoul(m_intervalInput));
+        }
         ImGui::SameLine();
         if (ImGui::Button("重命名")) {
             m_showRenamePopup = true;
