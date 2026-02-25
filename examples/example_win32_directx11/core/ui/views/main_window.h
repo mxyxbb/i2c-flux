@@ -17,7 +17,7 @@ namespace I2CDebugger {
 
         // 初始化所有窗口的输入缓冲区
         void InitializeInputBuffers();
-
+        void ShowAboutWindow1();
         void Render();
 
     private:
@@ -26,6 +26,7 @@ namespace I2CDebugger {
 
         bool m_showSimpleWindow = true;
         bool m_showTableWindow = true;
+        bool m_showAboutWindow = false;
 
     };
 
