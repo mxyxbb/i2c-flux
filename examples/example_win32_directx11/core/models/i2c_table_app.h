@@ -89,13 +89,22 @@ namespace I2CDebugger {
         uint8_t slaveAddress = 0x50;
         uint32_t interval = 100;
         bool continueOnError = false;
-
         std::vector<RegisterEntry> registerEntries;
         std::vector<SingleTriggerEntry> singleTriggerEntries;
         std::vector<PeriodicTriggerEntry> periodicTriggerEntries;
 
         // 数据日志配置
         DataLogConfig logConfig;
+
+        // --- 新增的成员函数 ---
+        uint32_t GetLastEnabledSingleTriggerID() const {
+            for (int i = static_cast<int>(singleTriggerEntries.size()) - 1; i >= 0; --i) {
+                if (singleTriggerEntries[i].enabled) {
+                    return static_cast<uint32_t>(i);
+                }
+            }
+            return UINT32_MAX; // 找不到时返回最大值
+        }
     };
 
     // ========== Tab类型枚举 ==========

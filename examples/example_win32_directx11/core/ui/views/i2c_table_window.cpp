@@ -594,6 +594,7 @@ namespace I2CDebugger {
 
                 // 列0: 启用
                 ImGui::TableSetColumnIndex(0);
+
                 ImGui::Checkbox("##en", &entry.enabled);
 
                 // 列1: 序号

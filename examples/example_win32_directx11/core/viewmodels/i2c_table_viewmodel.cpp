@@ -291,6 +291,9 @@ namespace I2CDebugger {
         if (group.singleTriggerEntries.empty()) {
             return;
         }
+        if(!AreAnySingleEntriesEnabled()) {
+            return;
+        }
         m_data.isExecuteAllSingleCommands = true;
         m_hardwareService->ExecuteAllSingleTrigger(group.slaveAddress, group.singleTriggerEntries);
     }
@@ -752,7 +755,8 @@ namespace I2CDebugger {
                     entry.lastError = packet.errorMsg;
                 }
             }
-            if (packet.commandId >= group.singleTriggerEntries.size() - 1 || !packet.success) {
+            uint32_t last_enabled_ID = group.GetLastEnabledSingleTriggerID();
+            if (last_enabled_ID != UINT32_MAX && packet.commandId >= last_enabled_ID) {
                 m_data.isExecuteAllSingleCommands = false;
             }
             break;
