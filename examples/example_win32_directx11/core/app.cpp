@@ -5,6 +5,8 @@
 #include "services/hardware_service.h"
 #include "services/configuration_service.h"
 #include "imgui.h"
+#include "viewmodels/plot_viewmodel.h"
+#include "ui/views/plot_view.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -38,11 +40,11 @@ namespace I2CDebugger {
     void App::Initialize() {
         // 创建硬件服务
         m_hardwareService = std::make_shared<HardwareService>();
+        m_plotViewModel = std::make_shared<PlotViewModel>();
 
         // 创建 ViewModel
         m_simpleViewModel = std::make_shared<I2CSimpleViewModel>(m_hardwareService);
-        m_tableViewModel = std::make_shared<I2CTableViewModel>(m_hardwareService);
-
+        m_tableViewModel = std::make_shared<I2CTableViewModel>(m_hardwareService, m_plotViewModel);
         //========== 设置硬件服务回调 ==========
 
         // 连接回调 - 同步两个ViewModel的状态
@@ -74,6 +76,10 @@ namespace I2CDebugger {
             m_tableViewModel->GetData().isConnected = false;
             m_tableViewModel->GetData().deviceName.clear();
             m_tableViewModel->GetData().isPeriodicRunning = false;
+            // 【新增这行】确保硬件掉线时波形图也能立刻停下来
+            if (m_plotViewModel) {
+                m_plotViewModel->SetSystemRunning(false);
+            }
             // 重置寄存器表读取状态
             m_tableViewModel->GetData().isReadingAllRegisters = false;
             m_tableViewModel->GetData().isExecuteAllSingleCommands = false;
@@ -129,6 +135,7 @@ namespace I2CDebugger {
 
                 // 创建主窗口
                 m_mainWindow = std::make_unique<MainWindow>(m_simpleViewModel, m_tableViewModel);
+                m_plotView = std::make_unique<PlotView>(m_plotViewModel);
 
                 // 初始化配置服务
                 // 修改后（正确）
@@ -149,6 +156,7 @@ namespace I2CDebugger {
         m_configService->LoadGlobalConfiguration(
             m_simpleViewModel->GetData(),
             m_tableViewModel->GetData(),
+            m_plotViewModel->GetConfig(), // <--- 传入波形图的配置参数
             m_globalConfigPath
         );
     }
@@ -157,6 +165,7 @@ namespace I2CDebugger {
         m_configService->SaveGlobalConfiguration(
             m_simpleViewModel->GetData(),
             m_tableViewModel->GetData(),
+            m_plotViewModel->GetConfig(), // <--- 传入波形图的配置参数
             m_globalConfigPath
         );
     }
@@ -165,6 +174,7 @@ namespace I2CDebugger {
         m_configService->LoadGlobalConfiguration(
             m_simpleViewModel->GetData(),
             m_tableViewModel->GetData(),
+            m_plotViewModel->GetConfig(), // <--- 传入波形图的配置参数
             m_globalConfigPath
         );
     }
@@ -173,6 +183,7 @@ namespace I2CDebugger {
         m_configService->LoadGlobalConfiguration(
             m_simpleViewModel->GetData(),
             m_tableViewModel->GetData(),
+            m_plotViewModel->GetConfig(), // <--- 传入波形图的配置参数
             filePath
         );
     }
@@ -253,6 +264,11 @@ namespace I2CDebugger {
 
         // 渲染主菜单栏
         RenderMainMenuBar();
+
+        // ========== 【新增】渲染波形图与通道控制面板 ==========
+        if (m_plotView) {
+            m_plotView->Render();
+        }
 
         // 渲染主窗口
         if (m_mainWindow) {

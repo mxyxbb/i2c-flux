@@ -2,9 +2,10 @@
 #include "../models/i2c_simple_app.h"
 #include "../models/i2c_table_app.h"
 #include "../models/i2c_command.h"
+#include "../viewmodels/plot_viewmodel.h"
 #include <string>
 #include <cstring>
-#include "core/nlohmann/json.hpp"
+#include "../nlohmann/json.hpp"
 
 namespace I2CDebugger {
 
@@ -13,15 +14,19 @@ namespace I2CDebugger {
         ConfigurationService() = default;
         ~ConfigurationService() = default;
 
-        // ========== 全局配置（同时保存 Simple 和 Table 数据）==========
+        // ========== 全局配置（同时保存 Simple、Table 和 Plot 数据）==========
+        // 【修改】：增加了 const PlotConfig& plotConfig
         bool SaveGlobalConfiguration(
             const I2CSimpleAppData& simpleData,
             const I2CTableAppData& tableData,
+            const PlotConfig& plotConfig,
             const std::string& filePath);
 
+        // 【修改】：增加了 PlotConfig& plotConfig
         bool LoadGlobalConfiguration(
             I2CSimpleAppData& simpleData,
             I2CTableAppData& tableData,
+            PlotConfig& plotConfig,
             const std::string& filePath);
 
         // ========== 单个命令组导出/导入 ==========
@@ -59,5 +64,9 @@ namespace I2CDebugger {
         // Table 数据序列化
         nlohmann::json TableDataToJson(const I2CTableAppData& data);
         void JsonToTableData(const nlohmann::json& j, I2CTableAppData& data);
+
+        // ========== 【新增】Plot 配置序列化 ==========
+        nlohmann::json PlotConfigToJson(const PlotConfig& config);
+        void JsonToPlotConfig(const nlohmann::json& j, PlotConfig& config);
     };
 }

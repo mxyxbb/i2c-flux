@@ -296,6 +296,7 @@ namespace I2CDebugger {
     bool ConfigurationService::SaveGlobalConfiguration(
         const I2CSimpleAppData& simpleData,
         const I2CTableAppData& tableData,
+        const PlotConfig& plotConfig, // <--- 新增
         const std::string& filePath)
     {
         try {
@@ -303,6 +304,7 @@ namespace I2CDebugger {
             j["version"] = "1.0";
             j["simpleData"] = SimpleDataToJson(simpleData);
             j["tableData"] = TableDataToJson(tableData);
+            j["plotConfig"] = PlotConfigToJson(plotConfig); // <--- 序列化写入
 
             std::ofstream file(filePath);
             if (!file.is_open()) {
@@ -322,6 +324,7 @@ namespace I2CDebugger {
     bool ConfigurationService::LoadGlobalConfiguration(
         I2CSimpleAppData& simpleData,
         I2CTableAppData& tableData,
+        PlotConfig& plotConfig, // <--- 新增
         const std::string& filePath)
     {
         try {
@@ -335,13 +338,11 @@ namespace I2CDebugger {
             json j;
             file >> j;
 
-            if (j.contains("simpleData")) {
-                JsonToSimpleData(j["simpleData"], simpleData);
-            }
+            if (j.contains("simpleData")) { JsonToSimpleData(j["simpleData"], simpleData); }
+            if (j.contains("tableData")) { JsonToTableData(j["tableData"], tableData); }
 
-            if (j.contains("tableData")) {
-                JsonToTableData(j["tableData"], tableData);
-            }
+            // <--- 反序列化读取
+            if (j.contains("plotConfig")) { JsonToPlotConfig(j["plotConfig"], plotConfig); }
 
             return true;
         }
@@ -423,6 +424,19 @@ namespace I2CDebugger {
             m_lastError = std::string("导入失败: ") + e.what();
             return false;
         }
+    }
+
+    // 在文件某个位置添加转换函数实现：
+    json ConfigurationService::PlotConfigToJson(const PlotConfig& config) {
+        json j;
+        j["showPlotWindow"] = config.showPlotWindow;
+        j["showPlotConfigWindow"] = config.showPlotConfigWindow;
+        return j;
+    }
+
+    void ConfigurationService::JsonToPlotConfig(const json& j, PlotConfig& config) {
+        if (j.contains("showPlotWindow")) config.showPlotWindow = j["showPlotWindow"].get<bool>();
+        if (j.contains("showPlotConfigWindow")) config.showPlotConfigWindow = j["showPlotConfigWindow"].get<bool>();
     }
 
 } // namespace I2CDebugger

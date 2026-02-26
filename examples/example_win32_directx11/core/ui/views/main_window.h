@@ -27,7 +27,6 @@ namespace I2CDebugger {
         bool m_showSimpleWindow = true;
         bool m_showTableWindow = true;
         bool m_showAboutWindow = false;
-
     };
 
 }

@@ -169,6 +169,7 @@
     <ClInclude Include="..\..\backends\imgui_impl_dx11.h" />
     <ClInclude Include="..\..\backends\imgui_impl_win32.h" />
     <ClInclude Include="core\app.h" />
+    <ClInclude Include="core\models\channel_model.h" />
     <ClInclude Include="core\models\i2c_command.h" />
     <ClInclude Include="core\models\i2c_data.h" />
     <ClInclude Include="core\models\i2c_simple_app.h" />
@@ -181,9 +182,11 @@
     <ClInclude Include="core\ui\views\i2c_simple_window.h" />
     <ClInclude Include="core\ui\views\i2c_table_window.h" />
     <ClInclude Include="core\ui\views\main_window.h" />
+    <ClInclude Include="core\ui\views\plot_view.h" />
     <ClInclude Include="core\ui\widgets\activity_indicator.h" />
     <ClInclude Include="core\viewmodels\i2c_simple_viewmodel.h" />
     <ClInclude Include="core\viewmodels\i2c_table_viewmodel.h" />
+    <ClInclude Include="core\viewmodels\plot_viewmodel.h" />
     <ClInclude Include="fonts\font_wqdkwm.h" />
     <ClInclude Include="hardware\PMBus\pmbus.h" />
     <ClInclude Include="hardware\simulator\simulator.h" />
@@ -202,6 +205,9 @@
     <ClCompile Include="..\..\backends\imgui_impl_win32.cpp" />
     <ClCompile Include="core\app.cpp" />
     <ClCompile Include="core\font\font_load.cpp" />
+    <ClCompile Include="core\implot\implot.cpp" />
+    <ClCompile Include="core\implot\implot_demo.cpp" />
+    <ClCompile Include="core\implot\implot_items.cpp" />
     <ClCompile Include="core\models\i2c_simple_app.cpp" />
     <ClCompile Include="core\models\i2c_table_app.cpp" />
     <ClCompile Include="core\services\configuration_service.cpp" />
@@ -212,6 +218,7 @@
     <ClCompile Include="core\ui\views\i2c_simple_window.cpp" />
     <ClCompile Include="core\ui\views\i2c_table_window.cpp" />
     <ClCompile Include="core\ui\views\main_window.cpp" />
+    <ClCompile Include="core\ui\views\plot_view.cpp" />
     <ClCompile Include="core\viewmodels\i2c_simple_viewmodel.cpp" />
     <ClCompile Include="core\viewmodels\i2c_table_viewmodel.cpp" />
     <ClCompile Include="hardware\PMBus\pmbus.cpp">

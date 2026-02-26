@@ -8,8 +8,10 @@
 
 namespace I2CDebugger {
 
-    I2CTableViewModel::I2CTableViewModel(std::shared_ptr<HardwareService> hardwareService)
+    I2CTableViewModel::I2CTableViewModel(std::shared_ptr<HardwareService> hardwareService,
+        std::shared_ptr<PlotViewModel> plotViewModel)
         : m_hardwareService(hardwareService)
+        , m_plotViewModel(plotViewModel) // 初始化
         , m_expressionParser(std::make_unique<ExpressionParser>())
         , m_dataLogger(std::make_unique<DataLogger>())  // 新增
     {
@@ -412,12 +414,60 @@ namespace I2CDebugger {
     {
         if (!m_data.isConnected) return;
         auto& group = GetCurrentGroup1();
+
+        // ========== 动态创建波形图通道 ==========
+        if (m_plotViewModel) {
+            m_plotViewModel->ClearChannels(); // 每次开始前清空旧通道
+
+            // 【新增】每次开始周期触发时，将波形图时间基准归零
+            m_plotViewModel->ResetTime();
+
+            // 【新增】告诉波形图系统已启动，可以开始滚动了
+            m_plotViewModel->SetSystemRunning(true);
+
+            // 定义一个预设的通道颜色池
+            std::vector<ImVec4> presetColors = {
+                ImVec4(1.0f, 0.2f, 0.2f, 1.0f), // 红
+                ImVec4(0.2f, 0.8f, 0.2f, 1.0f), // 绿
+                ImVec4(0.2f, 0.5f, 1.0f, 1.0f), // 蓝
+                ImVec4(1.0f, 0.8f, 0.0f, 1.0f), // 黄
+                ImVec4(0.8f, 0.2f, 1.0f, 1.0f)  // 紫
+            };
+            int colorIndex = 0;
+
+            for (size_t i = 0; i < group.periodicTriggerEntries.size(); ++i) {
+                const auto& entry = group.periodicTriggerEntries[i];
+
+                // 只有当：条目已启用 + 勾选了绘图曲线 + 是读取命令 + 启用了公式解析 时，才创建通道
+                if (entry.enabled && entry.plotEnabled &&
+                    entry.type == CommandType::Read && entry.parseConfig.enabled)
+                {
+                    // 通道名称优先使用别名，如果没有别名则使用 "CH1", "CH2"...
+                    std::string chName = entry.parseConfig.alias.empty() ?
+                        ("CH" + std::to_string(i + 1)) :
+                        entry.parseConfig.alias;
+
+                    ImVec4 color = presetColors[colorIndex % presetColors.size()];
+                    colorIndex++;
+
+                    // 传入 i 作为通道绑定的 id
+                    m_plotViewModel->AddChannel(i, chName, color);
+                }
+            }
+        }
+        // ===============================================
+
         m_data.isPeriodicRunning = true;
         m_hardwareService->StartPeriodicExecution(group.slaveAddress, group.periodicTriggerEntries, group.interval);
     }
 
     void I2CTableViewModel::StopPeriodicExecution()
     {
+        // 【新增】告诉波形图系统已停止，冻结画面
+        if (m_plotViewModel) {
+            m_plotViewModel->SetSystemRunning(false);
+        }
+
         m_data.isPeriodicRunning = false;
         m_hardwareService->StopPeriodicExecution();
     }
@@ -605,6 +655,10 @@ namespace I2CDebugger {
         config.parseSuccess = result.success;
         if (!result.success) {
             config.lastError = result.errorMsg;
+        }
+        else {
+            float currentTime = m_plotViewModel->GetRelativeTime();
+            m_plotViewModel->AddDataPoint(entryIndex, currentTime, static_cast<float>(config.parsedValue));
         }
     }
 

@@ -10,6 +10,9 @@ namespace I2CDebugger {
     class MainWindow;
     class HardwareService;
     class ConfigurationService;
+    // ======== 【新增】前向声明 ========
+    class PlotViewModel;
+    class PlotView;
 
     class App {
     public:
@@ -37,6 +40,8 @@ namespace I2CDebugger {
         std::shared_ptr<I2CTableViewModel> m_tableViewModel;
         std::unique_ptr<MainWindow> m_mainWindow;
         std::shared_ptr<ConfigurationService> m_configService;
+        std::shared_ptr<PlotViewModel> m_plotViewModel;
+        std::unique_ptr<PlotView> m_plotView;
 
         std::string m_globalConfigPath;
         bool m_showLoadGlobalPopup = false;

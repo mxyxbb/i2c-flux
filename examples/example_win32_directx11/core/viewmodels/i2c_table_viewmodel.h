@@ -3,8 +3,9 @@
 #include "../models/i2c_table_app.h"
 #include "../services/hardware_service.h"
 #include "../services/configuration_service.h"
-#include "../services/expression_parser.h"  // 添加
+#include "../services/expression_parser.h"
 #include "../services/data_logger.h"
+#include "plot_viewmodel.h"
 #include <memory>
 #include <string>
 
@@ -15,7 +16,8 @@ namespace I2CDebugger {
 
     class I2CTableViewModel {
     public:
-        explicit I2CTableViewModel(std::shared_ptr<HardwareService> hardwareService);
+        explicit I2CTableViewModel(std::shared_ptr<HardwareService> hardwareService,
+            std::shared_ptr<PlotViewModel> plotViewModel);
         ~I2CTableViewModel();
 
         void Connect();
@@ -110,6 +112,7 @@ namespace I2CDebugger {
         std::unique_ptr<ExpressionParser> m_expressionParser;  // 添加
         std::unique_ptr<DataLogger> m_dataLogger;
         DataLogConfig m_logConfig;
+        std::shared_ptr<PlotViewModel> m_plotViewModel; // 新增成员变量
     };
 
 }
