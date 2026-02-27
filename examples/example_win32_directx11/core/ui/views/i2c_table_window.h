@@ -2,6 +2,7 @@
 #include "../../viewmodels/i2c_table_viewmodel.h"
 #include <memory>
 #include <chrono>  // 添加这个头文件
+#include "quick_add_popup.h"
 
 namespace I2CDebugger {
 
@@ -99,6 +100,9 @@ namespace I2CDebugger {
 
         // 辅助函数
         std::string GenerateCSVHeaderPreview();
+
+        // 【新增】声明封装好的视图组件：
+        QuickAddPopup m_quickAddPopup;
     };
 
 }

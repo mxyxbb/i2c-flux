@@ -104,7 +104,6 @@ namespace I2CDebugger {
         bool StartDataLogging(const std::string& filePath);
         void StopDataLogging();
 
-
     private:
         I2CTableAppData m_data;
         std::shared_ptr<HardwareService> m_hardwareService;

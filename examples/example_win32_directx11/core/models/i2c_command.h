@@ -17,7 +17,7 @@ namespace I2CDebugger {
         std::string writeFormula;     // 写入公式
         std::string alias;            // 别名（用于log表头）
 
-        // 运行时数据（不保存到JSON）
+        // 运行时数据（也保存到JSON）
         double parsedValue = 0.0;
         bool parseSuccess = false;
         std::string lastError;

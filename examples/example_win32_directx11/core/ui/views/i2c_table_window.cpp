@@ -93,7 +93,17 @@ namespace I2CDebugger {
             m_viewModel->AddGroup();
             auto& group = m_viewModel->GetCurrentGroup1();
             group.slaveAddress = m_viewModel->ParseHexInput(m_slaveAddrInput);
-            group.interval = static_cast<uint32_t>(std::stoul(m_intervalInput));
+            if (m_intervalInput[0] != '\0') {
+                try {
+                    group.interval = static_cast<uint32_t>(std::stoul(m_intervalInput));
+                }
+                catch (...) {
+                    group.interval = 0; // 转换失败给个默认值
+                }
+            }
+            else {
+                group.interval = 0;
+            }
         }
         ImGui::SameLine();
         if (ImGui::Button("重命名")) {
@@ -162,6 +172,9 @@ namespace I2CDebugger {
 
         RenderExportPopup();
         RenderImportPopup();
+
+        // 渲染快捷添加组件，并把 viewModel 传给它，让它自己去办事
+        m_quickAddPopup.Render(m_viewModel);
 
         ImGui::End();
     }
@@ -295,8 +308,17 @@ namespace I2CDebugger {
             ImGui::Text("间隔(ms):");
             ImGui::SameLine();
             ImGui::SetNextItemWidth(80);
-            if (ImGui::InputText("##Interval", m_intervalInput, sizeof(m_intervalInput))) {
-                group.interval = static_cast<uint32_t>(std::stoul(m_intervalInput));
+            // 【修改】加入 CharsDecimal 限制和安全防护
+            if (ImGui::InputText("##Interval", m_intervalInput, sizeof(m_intervalInput), ImGuiInputTextFlags_CharsDecimal)) {
+                if (m_intervalInput[0] != '\0') {
+                    try {
+                        group.interval = static_cast<uint32_t>(std::stoul(m_intervalInput));
+                    }
+                    catch (...) {}
+                }
+                else {
+                    group.interval = 0;
+                }
             }
         }
 
@@ -422,12 +444,24 @@ namespace I2CDebugger {
                     entry.regAddress = m_viewModel->ParseHexInput(regBuf);
                 }
 
+                // 列2: 长度
                 ImGui::TableSetColumnIndex(2);
                 char lenBuf[8];
                 std::snprintf(lenBuf, sizeof(lenBuf), "%d", entry.length);
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                if (ImGui::InputText("##len", lenBuf, sizeof(lenBuf))) {
-                    entry.length = static_cast<uint8_t>(std::stoi(lenBuf));
+
+                // 【修改】加入安全防护与255边界截断
+                if (ImGui::InputText("##len", lenBuf, sizeof(lenBuf), ImGuiInputTextFlags_CharsDecimal)) {
+                    if (lenBuf[0] != '\0') {
+                        try {
+                            int parsedLen = std::stoi(lenBuf);
+                            entry.length = static_cast<uint8_t>(parsedLen > 255 ? 255 : parsedLen);
+                        }
+                        catch (...) {}
+                    }
+                    else {
+                        entry.length = 0;
+                    }
                 }
 
                 ImGui::TableSetColumnIndex(3);
@@ -503,6 +537,11 @@ namespace I2CDebugger {
         ImGui::SameLine(rightStart);
 
         if (ImGui::Button("添加##reg", ImVec2(50, 0))) { m_viewModel->AddRegisterEntry(); }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("左键添加单项；右键快捷添加"); }
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+            // 【修改】调用组件的 Open 方法，0 代表寄存器表
+            m_quickAddPopup.Open(0);
+        }
         ImGui::SameLine();
         if (ImGui::Button("删除##reg", ImVec2(50, 0))) { m_viewModel->DeleteRegisterEntry(); }
         ImGui::SameLine();
@@ -619,8 +658,28 @@ namespace I2CDebugger {
                 char lenBuf[8];
                 std::snprintf(lenBuf, sizeof(lenBuf), "%d", entry.length);
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                if (ImGui::InputText("##len", lenBuf, sizeof(lenBuf))) {
-                    entry.length = static_cast<uint8_t>(std::stoi(lenBuf));
+                if (ImGui::InputText("##len", lenBuf, sizeof(lenBuf), ImGuiInputTextFlags_CharsDecimal)) {
+                    int parsedLen = 0;
+                    if (lenBuf[0] != '\0') {
+                        try { parsedLen = std::stoi(lenBuf); }
+                        catch (...) {}
+                        parsedLen = parsedLen > 255 ? 255 : parsedLen;
+                    }
+                    entry.length = static_cast<uint8_t>(parsedLen);
+
+                    // 任一模式下，修改了长度，都应该同步更新 raw 值的数组长度 (保留原有数据，不足补0)
+                    entry.data.resize(entry.length, 0);
+
+                    if (entry.parseConfig.enabled) {
+                        if (isWriteType && !entry.parseConfig.writeFormula.empty()) {
+                            // 写入模式：利用解析值和新的长度重新生成 Raw
+                            m_viewModel->UpdateSingleRawFromParsedValue(i, entry.parseConfig.parsedValue);
+                        }
+                        else if (isReadType && !entry.parseConfig.readFormula.empty()) {
+                            // 读取模式：利用补0后的新 Raw 重新计算解析值
+                            m_viewModel->UpdateSingleParsedValue(i);
+                        }
+                    }
                 }
 
                 // 列4: 寄存器值(Raw) - 可编辑
@@ -632,55 +691,74 @@ namespace I2CDebugger {
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 if (ImGui::InputText("##data", dataBuf, sizeof(dataBuf))) {
                     entry.data = m_viewModel->ParseHexDataInput(dataBuf);
-                    // 编辑Raw时，自动更新解析值
-                    if (entry.parseConfig.enabled && !entry.parseConfig.readFormula.empty()) {
-                        m_viewModel->UpdateSingleParsedValue(i);
+                    entry.length = static_cast<uint8_t>(entry.data.size()); // 修改Raw也同步更新长度变量
+
+                    if (entry.parseConfig.enabled) {
+                        // 无论读写模式，只要配置了对应公式，修改 Raw 都会更新解析值
+                        bool canParse = (isWriteType && !entry.parseConfig.writeFormula.empty()) ||
+                            (isReadType && !entry.parseConfig.readFormula.empty());
+                        if (canParse) {
+                            m_viewModel->UpdateSingleParsedValue(i);
+                        }
                     }
                 }
 
                 // 列5: 解析值
                 ImGui::TableSetColumnIndex(5);
                 if (entry.parseConfig.enabled) {
-                    if (isWriteType) {
-                        // 写入命令：解析值可编辑
+                    // 判断是否满足计算和双向绑定的条件
+                    bool canParse = (isWriteType && !entry.parseConfig.writeFormula.empty()) ||
+                        (isReadType && !entry.parseConfig.readFormula.empty());
+
+                    if (canParse) {
                         char parsedBuf[64];
-                        std::snprintf(parsedBuf, sizeof(parsedBuf), "%.4g", entry.parseConfig.parsedValue);
+                        if (entry.parseConfig.parseSuccess || entry.data.empty()) {
+                            std::snprintf(parsedBuf, sizeof(parsedBuf), "%.8g", entry.parseConfig.parsedValue);
+                        }
+                        else {
+                            std::strncpy(parsedBuf, "ERR", sizeof(parsedBuf));
+                        }
+
+                        // 1. 记录是否推入了颜色样式
+                        bool isErrorColorPushed = false;
+                        if (!entry.parseConfig.parseSuccess && !entry.data.empty()) {
+                            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+                            isErrorColorPushed = true;
+                        }
+
                         ImGui::SetNextItemWidth(-FLT_MIN);
-                        if (ImGui::InputText("##parsed", parsedBuf, sizeof(parsedBuf),
-                            ImGuiInputTextFlags_EnterReturnsTrue)) {
+                        // 统一为 InputText，实现双向修改
+                        if (ImGui::InputText("##parsed", parsedBuf, sizeof(parsedBuf), ImGuiInputTextFlags_EnterReturnsTrue)) {
                             try {
                                 double newValue = std::stod(parsedBuf);
+                                entry.parseConfig.parsedValue = newValue;
+                                // 用户手动输入了解析值，反推并更新 Raw 数据
                                 m_viewModel->UpdateSingleRawFromParsedValue(i, newValue);
                             }
                             catch (...) {}
                         }
+
+                        // 2. 严格根据记录的标志来 Pop 颜色，确保成对出现
+                        if (isErrorColorPushed) {
+                            ImGui::PopStyleColor();
+                        }
+
                         if (ImGui::IsItemHovered()) {
-                            ImGui::SetTooltip("输入十进制值，按Enter确认");
-                        }
-                    }
-                    else if (isReadType) {
-                        // 读取命令：只显示解析值
-                        if (entry.parseConfig.parseSuccess) {
-                            ImGui::Text("%.4g", entry.parseConfig.parsedValue);
-                        }
-                        else if (!entry.data.empty()) {
-                            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "ERR");
-                            if (ImGui::IsItemHovered() && !entry.parseConfig.lastError.empty()) {
-                                ImGui::SetTooltip("解析错误: %s", entry.parseConfig.lastError.c_str());
+                            if (!entry.parseConfig.parseSuccess && !entry.parseConfig.lastError.empty()) {
+                                ImGui::SetTooltip("解析错误: %s\n输入十进制值，按Enter确认", entry.parseConfig.lastError.c_str());
                             }
-                        }
-                        else {
-                            ImGui::TextDisabled("--");
+                            else {
+                                ImGui::SetTooltip("输入十进制值，按Enter确认\n将同步反算并更新 Raw 数据");
+                            }
                         }
                     }
                     else {
-                        ImGui::TextDisabled("--");
+                        ImGui::TextDisabled("--"); // 未配置对应公式时，不计算也不允许编辑
                     }
                 }
                 else {
                     ImGui::TextDisabled("--");
                 }
-
                 // 列6: 状态
                 ImGui::TableSetColumnIndex(6);
                 if (entry.data.empty() && entry.lastErrorType == ErrorType::None) {
@@ -700,8 +778,18 @@ namespace I2CDebugger {
                 char delayBuf[16];
                 std::snprintf(delayBuf, sizeof(delayBuf), "%u", entry.delayMs);
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                if (ImGui::InputText("##delay", delayBuf, sizeof(delayBuf))) {
-                    entry.delayMs = static_cast<uint32_t>(std::stoul(delayBuf));
+
+                // 【修改】
+                if (ImGui::InputText("##delay", delayBuf, sizeof(delayBuf), ImGuiInputTextFlags_CharsDecimal)) {
+                    if (delayBuf[0] != '\0') {
+                        try {
+                            entry.delayMs = static_cast<uint32_t>(std::stoul(delayBuf));
+                        }
+                        catch (...) {}
+                    }
+                    else {
+                        entry.delayMs = 0;
+                    }
                 }
 
                 // 列8: 命令类型
@@ -795,6 +883,11 @@ namespace I2CDebugger {
         ImGui::SameLine(rightStart);
 
         if (ImGui::Button("添加##single", ImVec2(50, 0))) { m_viewModel->AddSingleEntry(); }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("左键添加单项；右键快捷添加"); }
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+            // 【修改】调用组件的 Open 方法，1 代表单次触发
+            m_quickAddPopup.Open(1);
+        }
         ImGui::SameLine();
         if (ImGui::Button("删除##single", ImVec2(50, 0))) { m_viewModel->DeleteSingleEntry(); }
         ImGui::SameLine();
@@ -863,7 +956,7 @@ namespace I2CDebugger {
             if (ImGui::Button("确定", ImVec2(80, 0))) {
                 entry.parseConfig.alias = m_aliasBuffer;
                 entry.parseConfig.readFormula = m_readFormulaInput;
-                entry.parseConfig.enabled = !entry.parseConfig.readFormula.empty();
+                entry.parseConfig.enabled = !entry.parseConfig.readFormula.empty() || !entry.parseConfig.writeFormula.empty();
 
                 // 立即更新解析值
                 if (entry.parseConfig.enabled && !entry.data.empty()) {
@@ -960,7 +1053,7 @@ namespace I2CDebugger {
                 entry.parseConfig.alias = m_aliasBuffer;
                 entry.parseConfig.readFormula = m_readFormulaInput;
                 entry.parseConfig.writeFormula = m_writeFormulaInput;
-                entry.parseConfig.enabled = !entry.parseConfig.readFormula.empty();
+                entry.parseConfig.enabled = !entry.parseConfig.readFormula.empty() || !entry.parseConfig.writeFormula.empty();
 
                 // 立即更新解析值
                 if (entry.parseConfig.enabled && !entry.data.empty()) {
@@ -1099,8 +1192,29 @@ namespace I2CDebugger {
                 char lenBuf[8];
                 std::snprintf(lenBuf, sizeof(lenBuf), "%d", entry.length);
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                if (ImGui::InputText("##len", lenBuf, sizeof(lenBuf))) {
-                    entry.length = static_cast<uint8_t>(std::stoi(lenBuf));
+
+                if (ImGui::InputText("##len", lenBuf, sizeof(lenBuf), ImGuiInputTextFlags_CharsDecimal)) {
+                    int parsedLen = 0;
+                    if (lenBuf[0] != '\0') {
+                        try { parsedLen = std::stoi(lenBuf); }
+                        catch (...) {}
+                        parsedLen = parsedLen > 255 ? 255 : parsedLen;
+                    }
+                    entry.length = static_cast<uint8_t>(parsedLen);
+
+                    // 任一模式下，修改了长度，都应该同步更新 raw 值的数组长度 (保留原有数据，不足补0)
+                    entry.data.resize(entry.length, 0);
+
+                    if (entry.parseConfig.enabled) {
+                        if (isWriteType && !entry.parseConfig.writeFormula.empty()) {
+                            // 写入模式：利用解析值和新的长度重新生成 Raw
+                            m_viewModel->UpdateRawFromParsedValue(i, entry.parseConfig.parsedValue);
+                        }
+                        else if (isReadType && !entry.parseConfig.readFormula.empty()) {
+                            // 读取模式：利用补0后的新 Raw 重新计算解析值
+                            m_viewModel->UpdateParsedValue(i);
+                        }
+                    }
                 }
 
                 // 列4: 寄存器值(Raw) - 可编辑
@@ -1112,48 +1226,69 @@ namespace I2CDebugger {
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 if (ImGui::InputText("##data", dataBuf, sizeof(dataBuf))) {
                     entry.data = m_viewModel->ParseHexDataInput(dataBuf);
-                    // 编辑Raw时，自动更新解析值（使用读取公式）
-                    if (entry.parseConfig.enabled && !entry.parseConfig.readFormula.empty()) {
-                        m_viewModel->UpdateParsedValue(i);
+                    entry.length = static_cast<uint8_t>(entry.data.size()); // 修改Raw也同步更新长度变量
+
+                    if (entry.parseConfig.enabled) {
+                        // 无论读写模式，只要配置了对应公式，修改 Raw 都会更新解析值
+                        bool canParse = (isWriteType && !entry.parseConfig.writeFormula.empty()) ||
+                            (isReadType && !entry.parseConfig.readFormula.empty());
+                        if (canParse) {
+                            m_viewModel->UpdateParsedValue(i);
+                        }
                     }
                 }
 
-                // 列5: 解析值 - 根据命令类型决定是否可编辑
+                // 列5: 解析值
                 ImGui::TableSetColumnIndex(5);
                 if (entry.parseConfig.enabled) {
-                    if (isWriteType) {
-                        // 写入命令：解析值可编辑，编辑后使用写入公式更新Raw
+                    // 判断是否满足计算和双向绑定的条件
+                    bool canParse = (isWriteType && !entry.parseConfig.writeFormula.empty()) ||
+                        (isReadType && !entry.parseConfig.readFormula.empty());
+
+                    if (canParse) {
                         char parsedBuf[64];
-                        std::snprintf(parsedBuf, sizeof(parsedBuf), "%.4g", entry.parseConfig.parsedValue);
-                        ImGui::SetNextItemWidth(-FLT_MIN);
-                        if (ImGui::InputText("##parsed", parsedBuf, sizeof(parsedBuf),
-                            ImGuiInputTextFlags_EnterReturnsTrue)) {
-                            try {
-                                double newValue = std::stod(parsedBuf);
-                                m_viewModel->UpdateRawFromParsedValue(i, newValue);
-                            }
-                            catch (...) {
-                                // 输入无效，忽略
-                            }
-                        }
-                        if (ImGui::IsItemHovered()) {
-                            ImGui::SetTooltip("输入十进制值，按Enter确认\n将使用写入公式转换为Raw数据");
-                        }
-                    }
-                    else if (isReadType) {
-                        // 读取命令：只显示解析值
-                        if (entry.parseConfig.parseSuccess) {
-                            ImGui::Text("%.4g", entry.parseConfig.parsedValue);
+                        if (entry.parseConfig.parseSuccess || entry.data.empty()) {
+                            std::snprintf(parsedBuf, sizeof(parsedBuf), "%.8g", entry.parseConfig.parsedValue);
                         }
                         else {
-                            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "ERR");
-                            if (ImGui::IsItemHovered() && !entry.parseConfig.lastError.empty()) {
-                                ImGui::SetTooltip("解析错误: %s", entry.parseConfig.lastError.c_str());
+                            std::strncpy(parsedBuf, "ERR", sizeof(parsedBuf));
+                        }
+
+                        // 1. 记录是否推入了颜色样式
+                        bool isErrorColorPushed = false;
+                        if (!entry.parseConfig.parseSuccess && !entry.data.empty()) {
+                            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+                            isErrorColorPushed = true;
+                        }
+
+                        ImGui::SetNextItemWidth(-FLT_MIN);
+                        // 统一为 InputText，实现双向修改
+                        if (ImGui::InputText("##parsed", parsedBuf, sizeof(parsedBuf), ImGuiInputTextFlags_EnterReturnsTrue)) {
+                            try {
+                                double newValue = std::stod(parsedBuf);
+                                entry.parseConfig.parsedValue = newValue;
+                                // 用户手动输入了解析值，反推并更新 Raw 数据
+                                m_viewModel->UpdateRawFromParsedValue(i, newValue);
+                            }
+                            catch (...) {}
+                        }
+
+                        // 2. 严格根据记录的标志来 Pop 颜色，确保成对出现
+                        if (isErrorColorPushed) {
+                            ImGui::PopStyleColor();
+                        }
+
+                        if (ImGui::IsItemHovered()) {
+                            if (!entry.parseConfig.parseSuccess && !entry.parseConfig.lastError.empty()) {
+                                ImGui::SetTooltip("解析错误: %s\n输入十进制值，按Enter确认", entry.parseConfig.lastError.c_str());
+                            }
+                            else {
+                                ImGui::SetTooltip("输入十进制值，按Enter确认\n将同步反算并更新 Raw 数据");
                             }
                         }
                     }
                     else {
-                        ImGui::TextDisabled("--");
+                        ImGui::TextDisabled("--"); // 未配置对应公式时，不计算也不允许编辑
                     }
                 }
                 else {
@@ -1188,8 +1323,18 @@ namespace I2CDebugger {
                 char delayBuf[16];
                 std::snprintf(delayBuf, sizeof(delayBuf), "%u", entry.delayMs);
                 ImGui::SetNextItemWidth(-FLT_MIN);
-                if (ImGui::InputText("##delay", delayBuf, sizeof(delayBuf))) {
-                    entry.delayMs = static_cast<uint32_t>(std::stoul(delayBuf));
+
+                // 【修改】
+                if (ImGui::InputText("##delay", delayBuf, sizeof(delayBuf), ImGuiInputTextFlags_CharsDecimal)) {
+                    if (delayBuf[0] != '\0') {
+                        try {
+                            entry.delayMs = static_cast<uint32_t>(std::stoul(delayBuf));
+                        }
+                        catch (...) {}
+                    }
+                    else {
+                        entry.delayMs = 0;
+                    }
                 }
 
                 // 列9: 命令类型
@@ -1377,6 +1522,11 @@ namespace I2CDebugger {
         ImGui::SameLine(rightStart);
 
         if (ImGui::Button("添加##periodic", ImVec2(50, 0))) { m_viewModel->AddPeriodicEntry(); }
+        if (ImGui::IsItemHovered()) { ImGui::SetTooltip("左键添加单项；右键快捷添加"); }
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+            // 【修改】调用组件的 Open 方法，2 代表周期触发
+            m_quickAddPopup.Open(2);
+        }
         ImGui::SameLine();
         if (ImGui::Button("删除##periodic", ImVec2(50, 0))) { m_viewModel->DeletePeriodicEntry(); }
         ImGui::SameLine();
@@ -1429,7 +1579,7 @@ namespace I2CDebugger {
             ImGui::SetNextItemWidth(-1);
             ImGui::InputText("##WriteFormula", m_writeFormulaInput, sizeof(m_writeFormulaInput));
             ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
-                "示例: value, value * 10, value / 0.1");
+                "示例: value, v * 10, v / 0.1");
 
             ImGui::Spacing();
             ImGui::Separator();
@@ -1454,7 +1604,7 @@ namespace I2CDebugger {
                     "  (b1 << 8 | b0) / 100  : 转换后除以100\n"
                     "  b0 & 0x0F             : 取低4位\n"
                     "\n"
-                    "写入公式:\n"
+                    "写入公式:value / v\n"
                     "  value                 : 直接使用输入值\n"
                     "  value * 100           : 输入值乘以100\n"
                     "  value / 0.1           : 输入值除以0.1\n"
@@ -1470,7 +1620,7 @@ namespace I2CDebugger {
                 entry.parseConfig.alias = m_aliasBuffer;
                 entry.parseConfig.readFormula = m_readFormulaInput;
                 entry.parseConfig.writeFormula = m_writeFormulaInput;
-                entry.parseConfig.enabled = !entry.parseConfig.readFormula.empty();
+                entry.parseConfig.enabled = !entry.parseConfig.readFormula.empty() || !entry.parseConfig.writeFormula.empty();
 
                 // 立即更新解析值
                 if (entry.parseConfig.enabled) {
@@ -1812,3 +1962,18 @@ namespace I2CDebugger {
         return header;
     }
 }
+
+
+/*再帮我更新一下quick_add_processor的逻辑
+
+对于AddPeriodicEntry，一共解析7个值
+
+第一个值为文本“read/write”，第二个值为“寄存器地址(16进制)“，第三个值为"长度(10进制)"，第四个值为寄存器值raw hex,第五个值为解析值，第六个值为延时，第七个值为读取公式或写入公式
+
+如果第一个值是write，则第7个值是"写入公式"，然后如果写入公式有值，则通过解析值反算出raw hex第四个值是解析前的10进制数据，第五个值是别名；
+
+如果第一个值是read，则第三个值是"读取长度(10进制)"，第四个值是"读取公式"，然后第五个值是别名。
+
+数值可以不填，需留“，”做占位符
+
+对于AddSingleEntry，*/

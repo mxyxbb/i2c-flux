@@ -13,8 +13,12 @@ namespace I2CDebugger {
         j["enabled"] = config.enabled;
         j["readFormula"] = config.readFormula;
         j["writeFormula"] = config.writeFormula;
-        // 如果有 alias 字段
-        // j["alias"] = config.alias;
+        j["alias"] = config.alias;
+        // 新增：保存 parsedValue 
+        j["parsedValue"] = config.parsedValue;
+        j["parseSuccess"] = config.parseSuccess;
+        
+
         return j;
     }
 
@@ -23,7 +27,11 @@ namespace I2CDebugger {
         if (j.contains("enabled")) config.enabled = j["enabled"].get<bool>();
         if (j.contains("readFormula")) config.readFormula = j["readFormula"].get<std::string>();
         if (j.contains("writeFormula")) config.writeFormula = j["writeFormula"].get<std::string>();
-        // if (j.contains("alias")) config.alias = j["alias"].get<std::string>();
+        if (j.contains("alias")) config.alias = j["alias"].get<std::string>();
+        // 新增：读取 parsedValue
+        if (j.contains("parsedValue")) config.parsedValue = j["parsedValue"].get<double>();
+        if (j.contains("parseSuccess")) config.parseSuccess = j["parseSuccess"].get<bool>();
+
         return config;
     }
 

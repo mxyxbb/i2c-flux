@@ -50,6 +50,8 @@
     <ClInclude Include="core\models\channel_model.h" />
     <ClInclude Include="core\viewmodels\plot_viewmodel.h" />
     <ClInclude Include="core\ui\views\plot_view.h" />
+    <ClInclude Include="core\ui\views\quick_add_popup.h" />
+    <ClInclude Include="core\viewmodels\quick_add_processor.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\imgui.cpp">
@@ -97,6 +99,8 @@
     <ClCompile Include="core\implot\implot.cpp" />
     <ClCompile Include="core\implot\implot_demo.cpp" />
     <ClCompile Include="core\implot\implot_items.cpp" />
+    <ClCompile Include="core\ui\views\quick_add_popup.cpp" />
+    <ClCompile Include="core\viewmodels\quick_add_processor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\README.txt" />

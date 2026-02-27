@@ -183,10 +183,12 @@
     <ClInclude Include="core\ui\views\i2c_table_window.h" />
     <ClInclude Include="core\ui\views\main_window.h" />
     <ClInclude Include="core\ui\views\plot_view.h" />
+    <ClInclude Include="core\ui\views\quick_add_popup.h" />
     <ClInclude Include="core\ui\widgets\activity_indicator.h" />
     <ClInclude Include="core\viewmodels\i2c_simple_viewmodel.h" />
     <ClInclude Include="core\viewmodels\i2c_table_viewmodel.h" />
     <ClInclude Include="core\viewmodels\plot_viewmodel.h" />
+    <ClInclude Include="core\viewmodels\quick_add_processor.h" />
     <ClInclude Include="fonts\font_wqdkwm.h" />
     <ClInclude Include="hardware\PMBus\pmbus.h" />
     <ClInclude Include="hardware\simulator\simulator.h" />
@@ -219,8 +221,10 @@
     <ClCompile Include="core\ui\views\i2c_table_window.cpp" />
     <ClCompile Include="core\ui\views\main_window.cpp" />
     <ClCompile Include="core\ui\views\plot_view.cpp" />
+    <ClCompile Include="core\ui\views\quick_add_popup.cpp" />
     <ClCompile Include="core\viewmodels\i2c_simple_viewmodel.cpp" />
     <ClCompile Include="core\viewmodels\i2c_table_viewmodel.cpp" />
+    <ClCompile Include="core\viewmodels\quick_add_processor.cpp" />
     <ClCompile Include="hardware\PMBus\pmbus.cpp">
       <DebugInformationFormat Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ProgramDatabase</DebugInformationFormat>
       <DebugInformationFormat Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ProgramDatabase</DebugInformationFormat>
