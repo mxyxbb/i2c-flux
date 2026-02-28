@@ -1,4 +1,4 @@
-// MIT License
+﻿// MIT License
 
 // Copyright (c) 2020-2024 Evan Pezent
 // Copyright (c) 2025 Breno Cunha Queiroz

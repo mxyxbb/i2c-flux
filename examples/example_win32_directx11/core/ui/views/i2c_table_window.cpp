@@ -173,8 +173,11 @@ namespace I2CDebugger {
         RenderExportPopup();
         RenderImportPopup();
 
-        // 渲染快捷添加组件，并把 viewModel 传给它，让它自己去办事
+        // 渲染快捷添加组件
         m_quickAddPopup.Render(m_viewModel);
+
+        // 【新增】：调用快捷键处理函数
+        HandleKeyboardShortcuts();
 
         ImGui::End();
     }
@@ -515,7 +518,7 @@ namespace I2CDebugger {
             ImGui::BeginDisabled();
         }
 
-        if (ImGui::Button("读取所有寄存器", ImVec2(130, 0))) {
+        if (ImGui::Button("读取所有寄存器")) {
             m_viewModel->ReadAllRegisters();
         }
 
@@ -862,7 +865,7 @@ namespace I2CDebugger {
             ImGui::BeginDisabled();
         }
 
-        if (ImGui::Button("执行所有命令", ImVec2(120, 0))) {
+        if (ImGui::Button("执行所有命令")) {
             m_viewModel->ExecuteAllSingleCommands();
         }
 
@@ -1961,6 +1964,20 @@ namespace I2CDebugger {
 
         return header;
     }
+
+    // ==================== 快捷键处理 ====================
+    void I2CTableWindow::HandleKeyboardShortcuts()
+    {
+        ImGuiIO& io = ImGui::GetIO();
+
+        // 保护机制：如果当前用户正在输入框里打字（比如修改公式），
+        // 按 Ctrl+Z 应该只触发文本框自身的撤销，而不是恢复被删除的行。
+        // !ImGui::IsAnyItemActive() 确保了当前没有 UI 控件被激活（聚焦）。
+        if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z) && !ImGui::IsAnyItemActive()) {
+            m_viewModel->UndoLastDelete();
+        }
+    }
+
 }
 
 

@@ -14,6 +14,26 @@ namespace I2CDebugger {
     class ConfigurationService;
     class DataLogger;  // 前向声明
 
+    // 1. 定义撤销类型枚举
+    enum class UndoItemType {
+        Register,
+        SingleTrigger,
+        PeriodicTrigger
+    };
+
+    // 2. 定义撤销动作结构体
+    struct UndoAction {
+        UndoItemType type;
+        int groupIndex;
+        int itemIndex;
+
+        // 为了兼容性，这里简单地把三种 entry 都放进来
+        // 实际存储时只会用到其中一个
+        RegisterEntry regEntry;
+        SingleTriggerEntry singleEntry;
+        PeriodicTriggerEntry periodicEntry;
+    };
+
     class I2CTableViewModel {
     public:
         explicit I2CTableViewModel(std::shared_ptr<HardwareService> hardwareService,
@@ -104,6 +124,11 @@ namespace I2CDebugger {
         bool StartDataLogging(const std::string& filePath);
         void StopDataLogging();
 
+        // 暴露给 UI 调用的撤销方法
+        void UndoLastDelete();
+        // 【新增】：导出单次触发数据到 CSV
+        bool ExportSingleTriggerToCSV(const std::string& filePath);
+
     private:
         I2CTableAppData m_data;
         std::shared_ptr<HardwareService> m_hardwareService;
@@ -112,6 +137,10 @@ namespace I2CDebugger {
         std::unique_ptr<DataLogger> m_dataLogger;
         DataLogConfig m_logConfig;
         std::shared_ptr<PlotViewModel> m_plotViewModel; // 新增成员变量
+
+        // 添加撤销栈（限制大小防止内存无限增长）
+        std::vector<UndoAction> m_undoStack;
+        const size_t MAX_UNDO_STEPS = 20;
     };
 
 }

@@ -68,7 +68,7 @@ void I2CSimpleWindow::RenderDeviceConnection()
     ImGui::SameLine();
     const char* baudItems[] = { "100K", "400K" };
     int baudIndex = (data.baudRate == BAUD_RATE_400K) ? 1 : 0;
-    ImGui::SetNextItemWidth(80);
+    ImGui::SetNextItemWidth(100);
     if (ImGui::Combo("##Baud", &baudIndex, baudItems, 2)) {
         data.baudRate = (baudIndex == 1) ? BAUD_RATE_400K : BAUD_RATE_100K;
     }
@@ -170,14 +170,19 @@ void I2CSimpleWindow::RenderSimpleOperation()
     ImGui::SameLine();
     ImGui::SetNextItemWidth(80);
     ImGui::InputText("##SlaveAddr", data.slaveAddrInput, sizeof(data.slaveAddrInput));
-    
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("16进制数据，带不带0x均可");
+    }
     // 寄存器地址
     ImGui::SameLine();
     ImGui::Text("寄存器地址:");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(80);
     ImGui::InputText("##RegAddr", data.regAddrInput, sizeof(data.regAddrInput));
-    
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("16进制数据，带不带0x均可");
+    }
+
     // 操作类型
     ImGui::Text("操作类型:");
     ImGui::SameLine();
@@ -195,6 +200,9 @@ void I2CSimpleWindow::RenderSimpleOperation()
             ImGui::SameLine();
             ImGui::SetNextItemWidth(60);
             ImGui::InputText("##Length", data.lengthInput, sizeof(data.lengthInput));
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("10进制数，CP2112最大512");
+            }
             ImGui::Text("读取结果:");
             ImGui::SameLine();
             {
@@ -207,6 +215,9 @@ void I2CSimpleWindow::RenderSimpleOperation()
             ImGui::SameLine();
             ImGui::SetNextItemWidth(200);
             ImGui::InputText("##WriteData", data.writeDataInput, sizeof(data.writeDataInput));
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("16进制数，CP2112最大512个字节");
+            }
             ImGui::SameLine();
             ImGui::TextDisabled("(空格分隔)");
             break;

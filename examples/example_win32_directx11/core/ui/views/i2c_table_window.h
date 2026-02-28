@@ -103,6 +103,9 @@ namespace I2CDebugger {
 
         // 【新增】声明封装好的视图组件：
         QuickAddPopup m_quickAddPopup;
+
+        // 【新增】：处理全局快捷键
+        void HandleKeyboardShortcuts();
     };
 
 }

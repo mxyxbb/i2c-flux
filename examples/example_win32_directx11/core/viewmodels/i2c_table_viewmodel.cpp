@@ -138,19 +138,31 @@ namespace I2CDebugger {
         GetCurrentGroup1().registerEntries.push_back(entry);
     }
 
-    void I2CTableViewModel::DeleteRegisterEntry()
-    {
+    void I2CTableViewModel::DeleteRegisterEntry() {
+        auto& data = GetData();
         auto& entries = GetCurrentGroup1().registerEntries;
-        if (entries.empty()) return;
 
-        int index = m_data.selectedRowRegister;
-        if (index < 0 || index >= static_cast<int>(entries.size())) {
-            index = static_cast<int>(entries.size()) - 1;
-        }
-        entries.erase(entries.begin() + index);
+        if (data.selectedRowRegister >= 0 && data.selectedRowRegister < static_cast<int>(entries.size())) {
 
-        if (m_data.selectedRowRegister >= static_cast<int>(entries.size())) {
-            m_data.selectedRowRegister = static_cast<int>(entries.size()) - 1;
+            // 【新增】：在真正 erase 之前，保存到撤销栈
+            UndoAction action;
+            action.type = UndoItemType::Register;
+            action.groupIndex = data.currentGroupIndex;
+            action.itemIndex = data.selectedRowRegister;
+            action.regEntry = entries[data.selectedRowRegister];
+
+            m_undoStack.push_back(action);
+            if (m_undoStack.size() > MAX_UNDO_STEPS) {
+                m_undoStack.erase(m_undoStack.begin()); // 保持栈大小不超过限制
+            }
+
+            // 原有的删除逻辑
+            entries.erase(entries.begin() + data.selectedRowRegister);
+
+            // 修正越界的选中行索引
+            if (data.selectedRowRegister >= static_cast<int>(entries.size())) {
+                data.selectedRowRegister = static_cast<int>(entries.size()) - 1;
+            }
         }
     }
 
@@ -211,19 +223,31 @@ namespace I2CDebugger {
         GetCurrentGroup1().singleTriggerEntries.push_back(entry);
     }
 
-    void I2CTableViewModel::DeleteSingleEntry()
-    {
+    void I2CTableViewModel::DeleteSingleEntry() {
+        auto& data = GetData();
         auto& entries = GetCurrentGroup1().singleTriggerEntries;
-        if (entries.empty()) return;
 
-        int index = m_data.selectedRowSingle;
-        if (index < 0 || index >= static_cast<int>(entries.size())) {
-            index = static_cast<int>(entries.size()) - 1;
-        }
-        entries.erase(entries.begin() + index);
+        if (data.selectedRowSingle >= 0 && data.selectedRowSingle < static_cast<int>(entries.size())) {
 
-        if (m_data.selectedRowSingle >= static_cast<int>(entries.size())) {
-            m_data.selectedRowSingle = static_cast<int>(entries.size()) - 1;
+            // 【新增】：在真正 erase 之前，保存到撤销栈
+            UndoAction action;
+            action.type = UndoItemType::SingleTrigger;
+            action.groupIndex = data.currentGroupIndex;
+            action.itemIndex = data.selectedRowSingle;
+            action.singleEntry = entries[data.selectedRowSingle];
+
+            m_undoStack.push_back(action);
+            if (m_undoStack.size() > MAX_UNDO_STEPS) {
+                m_undoStack.erase(m_undoStack.begin()); // 保持栈大小
+            }
+            // ==========================================
+
+            // 你原有的删除逻辑
+            entries.erase(entries.begin() + data.selectedRowSingle);
+
+            if (data.selectedRowSingle >= static_cast<int>(entries.size())) {
+                data.selectedRowSingle = static_cast<int>(entries.size()) - 1;
+            }
         }
     }
 
@@ -336,19 +360,31 @@ namespace I2CDebugger {
         GetCurrentGroup1().periodicTriggerEntries.push_back(entry);
     }
 
-    void I2CTableViewModel::DeletePeriodicEntry()
-    {
+    void I2CTableViewModel::DeletePeriodicEntry() {
+        auto& data = GetData();
         auto& entries = GetCurrentGroup1().periodicTriggerEntries;
-        if (entries.empty()) return;
 
-        int index = m_data.selectedRowPeriodic;
-        if (index < 0 || index >= static_cast<int>(entries.size())) {
-            index = static_cast<int>(entries.size()) - 1;
-        }
-        entries.erase(entries.begin() + index);
+        if (data.selectedRowPeriodic >= 0 && data.selectedRowPeriodic < static_cast<int>(entries.size())) {
 
-        if (m_data.selectedRowPeriodic >= static_cast<int>(entries.size())) {
-            m_data.selectedRowPeriodic = static_cast<int>(entries.size()) - 1;
+            // 【新增】：在真正 erase 之前，保存到撤销栈
+            UndoAction action;
+            action.type = UndoItemType::PeriodicTrigger;
+            action.groupIndex = data.currentGroupIndex;
+            action.itemIndex = data.selectedRowPeriodic;
+            action.periodicEntry = entries[data.selectedRowPeriodic];
+
+            m_undoStack.push_back(action);
+            if (m_undoStack.size() > MAX_UNDO_STEPS) {
+                m_undoStack.erase(m_undoStack.begin()); // 保持栈大小不超过限制
+            }
+
+            // 原有的删除逻辑
+            entries.erase(entries.begin() + data.selectedRowPeriodic);
+
+            // 修正越界的选中行索引
+            if (data.selectedRowPeriodic >= static_cast<int>(entries.size())) {
+                data.selectedRowPeriodic = static_cast<int>(entries.size()) - 1;
+            }
         }
     }
 
@@ -656,7 +692,7 @@ namespace I2CDebugger {
         if (!result.success) {
             config.lastError = result.errorMsg;
         }
-        else {
+        else if(!m_plotViewModel->IsUserPaused()) {
             float currentTime = m_plotViewModel->GetRelativeTime();
             m_plotViewModel->AddDataPoint(entryIndex, currentTime, static_cast<float>(config.parsedValue));
         }
@@ -851,6 +887,47 @@ namespace I2CDebugger {
         }
     }
 
+    void I2CTableViewModel::UndoLastDelete() {
+        if (m_undoStack.empty()) return;
+
+        // 弹出最后一个删除动作
+        UndoAction action = m_undoStack.back();
+        m_undoStack.pop_back();
+
+        auto& data = GetData();
+        // 如果组已经被删了，或者索引越界，就放弃撤销
+        if (action.groupIndex < 0 || action.groupIndex >= static_cast<int>(data.commandGroups.size())) {
+            return;
+        }
+
+        auto& group = data.commandGroups[action.groupIndex];
+
+        // 根据类型插回原位置，并自动选中被恢复的行
+        if (action.type == UndoItemType::Register) {
+            if (action.itemIndex <= static_cast<int>(group.registerEntries.size())) {
+                group.registerEntries.insert(group.registerEntries.begin() + action.itemIndex, action.regEntry);
+                data.currentGroupIndex = action.groupIndex;
+                data.currentTab = TabType::RegisterTable;
+                data.selectedRowRegister = action.itemIndex;
+            }
+        }
+        else if (action.type == UndoItemType::SingleTrigger) {
+            if (action.itemIndex <= static_cast<int>(group.singleTriggerEntries.size())) {
+                group.singleTriggerEntries.insert(group.singleTriggerEntries.begin() + action.itemIndex, action.singleEntry);
+                data.currentGroupIndex = action.groupIndex;
+                data.currentTab = TabType::SingleTrigger;
+                data.selectedRowSingle = action.itemIndex;
+            }
+        }
+        else if (action.type == UndoItemType::PeriodicTrigger) {
+            if (action.itemIndex <= static_cast<int>(group.periodicTriggerEntries.size())) {
+                group.periodicTriggerEntries.insert(group.periodicTriggerEntries.begin() + action.itemIndex, action.periodicEntry);
+                data.currentGroupIndex = action.groupIndex;
+                data.currentTab = TabType::PeriodicTrigger;
+                data.selectedRowPeriodic = action.itemIndex;
+            }
+        }
+    }
 }
 
 
