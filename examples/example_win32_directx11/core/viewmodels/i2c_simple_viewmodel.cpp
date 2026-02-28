@@ -4,8 +4,10 @@
 
 namespace I2CDebugger {
 
-    I2CSimpleViewModel::I2CSimpleViewModel(std::shared_ptr<HardwareService> hardwareService)
+    I2CSimpleViewModel::I2CSimpleViewModel(std::shared_ptr<HardwareService> hardwareService,
+        std::shared_ptr<PlotViewModel> plotViewModel)
         : m_hardwareService(hardwareService)
+        , m_plotViewModel(plotViewModel) // 初始化
     {
         //回调统一在App中设置，避免覆盖问题
     }
@@ -23,6 +25,11 @@ namespace I2CDebugger {
     void I2CSimpleViewModel::Disconnect()
     {
         m_hardwareService->Disconnect();
+
+        // 【新增这行代码】：强制绘图视图停止滚动
+        if (m_plotViewModel) {
+            m_plotViewModel->SetSystemRunning(false);
+        }
     }
 
     void I2CSimpleViewModel::ScanSlaves()

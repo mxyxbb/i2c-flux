@@ -2,13 +2,15 @@
 
 #include "../models/i2c_simple_app.h"
 #include "../services/hardware_service.h"
+#include "plot_viewmodel.h"
 #include <memory>
 
 namespace I2CDebugger {
 
     class I2CSimpleViewModel {
     public:
-        explicit I2CSimpleViewModel(std::shared_ptr<HardwareService> hardwareService);
+        explicit I2CSimpleViewModel(std::shared_ptr<HardwareService> hardwareService,
+            std::shared_ptr<PlotViewModel> plotViewModel);
 
         void Connect();
         void Disconnect();
@@ -26,6 +28,7 @@ namespace I2CDebugger {
     private:
         I2CSimpleAppData m_data;
         std::shared_ptr<HardwareService> m_hardwareService;
+        std::shared_ptr<PlotViewModel> m_plotViewModel; // 新增成员变量
     };
 
 }

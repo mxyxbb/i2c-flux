@@ -43,7 +43,7 @@ namespace I2CDebugger {
         m_plotViewModel = std::make_shared<PlotViewModel>();
 
         // 创建 ViewModel
-        m_simpleViewModel = std::make_shared<I2CSimpleViewModel>(m_hardwareService);
+        m_simpleViewModel = std::make_shared<I2CSimpleViewModel>(m_hardwareService, m_plotViewModel);
         m_tableViewModel = std::make_shared<I2CTableViewModel>(m_hardwareService, m_plotViewModel);
         //========== 设置硬件服务回调 ==========
 

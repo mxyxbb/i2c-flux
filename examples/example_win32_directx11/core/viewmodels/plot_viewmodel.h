@@ -29,6 +29,9 @@ namespace I2CDebugger {
             if (running) {
                 m_isUserPaused = false; // 每次点击“开始触发”时，自动恢复滚动状态
             }
+            else {
+                m_isUserPaused = true;
+            }
         }
         float GetRelativeTime() const {
             return static_cast<float>(ImGui::GetTime()) - m_startTime;
