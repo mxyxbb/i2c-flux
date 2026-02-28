@@ -80,3 +80,4 @@ examples/example_sdl3_vulkan/example_sdl3_vulkan
 /examples/example_win32_directx11/aabb.csv
 /examples/example_win32_directx11/data_log_17695704484.csv
 *.csv
+examples/example_win32_directx11/hardware/simulator/simulator.h
