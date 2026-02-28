@@ -304,6 +304,9 @@ namespace I2CDebugger {
         if (ImGui::InputText("##TableSlaveAddr", m_slaveAddrInput, sizeof(m_slaveAddrInput))) {
             group.slaveAddress = m_viewModel->ParseHexInput(m_slaveAddrInput);
         }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("16进制数据，带不带0x均可");
+        }
 
         // 周期触发时显示间隔设置
         if (data.currentTab == TabType::PeriodicTrigger) {
@@ -410,19 +413,24 @@ namespace I2CDebugger {
         auto& data = m_viewModel->GetData();
         auto& entries = m_viewModel->GetCurrentGroup1().registerEntries;
 
-        ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY |
-            ImGuiTableFlags_SizingStretchProp;
+        // 增加 ScrollX 和 SizingFixedFit 以启用完美自适应和水平滚动
+        ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+            ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollX |
+            ImGuiTableFlags_SizingFixedFit;
 
         float tableHeight = ImGui::GetContentRegionAvail().y - 40;
 
         if (ImGui::BeginTable("RegisterTable", 7, flags, ImVec2(0, tableHeight))) {
+            // 输入框/固定控件给个合理的最小宽度
             ImGui::TableSetupColumn("序号", ImGuiTableColumnFlags_WidthFixed, 40);
-            ImGui::TableSetupColumn("Reg地址", ImGuiTableColumnFlags_WidthFixed, 70);
+            ImGui::TableSetupColumn("Reg地址", ImGuiTableColumnFlags_WidthFixed, 60);
             ImGui::TableSetupColumn("长度", ImGuiTableColumnFlags_WidthFixed, 40);
-            ImGui::TableSetupColumn("寄存器值", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("状态", ImGuiTableColumnFlags_WidthFixed, 40);
-            ImGui::TableSetupColumn("寄存器描述", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("属性", ImGuiTableColumnFlags_WidthFixed, 45);
+            // 内容可能很长，使用 WidthStretch 自动伸展
+            ImGui::TableSetupColumn("寄存器值", ImGuiTableColumnFlags_WidthStretch, 120);
+            // 文本和按钮列不填宽度（或设为0），ImGui 会根据内容自动计算完美宽度！
+            ImGui::TableSetupColumn("状态", ImGuiTableColumnFlags_WidthFixed, 0.0f);
+            ImGui::TableSetupColumn("寄存器描述", ImGuiTableColumnFlags_WidthStretch, 200);
+            ImGui::TableSetupColumn("属性", ImGuiTableColumnFlags_WidthFixed, 0.0f);
             ImGui::TableHeadersRow();
 
             for (int i = 0; i < static_cast<int>(entries.size()); i++) {
@@ -561,24 +569,25 @@ namespace I2CDebugger {
         auto& entries = m_viewModel->GetCurrentGroup1().singleTriggerEntries;
 
         ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-            ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY |
-            ImGuiTableFlags_SizingStretchProp;
+            ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollX |
+            ImGuiTableFlags_SizingFixedFit;
 
         float tableHeight = ImGui::GetContentRegionAvail().y - 40;
 
-        // 增加到11列：添加解析值和解析按钮
         if (ImGui::BeginTable("SingleTriggerTable", 11, flags, ImVec2(0, tableHeight))) {
             ImGui::TableSetupColumn("##En", ImGuiTableColumnFlags_WidthFixed, 25);
             ImGui::TableSetupColumn("序号", ImGuiTableColumnFlags_WidthFixed, 35);
-            ImGui::TableSetupColumn("Reg地址", ImGuiTableColumnFlags_WidthFixed, 70);
+            ImGui::TableSetupColumn("Reg地址", ImGuiTableColumnFlags_WidthFixed, 60);
             ImGui::TableSetupColumn("长度", ImGuiTableColumnFlags_WidthFixed, 40);
-            ImGui::TableSetupColumn("寄存器值(Raw)", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("解析值", ImGuiTableColumnFlags_WidthFixed, 80);
-            ImGui::TableSetupColumn("状态", ImGuiTableColumnFlags_WidthFixed, 40);
+            // 寄存器 Raw 值是核心，允许伸展
+            ImGui::TableSetupColumn("寄存器值(Raw)", ImGuiTableColumnFlags_WidthStretch, 150);
+            ImGui::TableSetupColumn("解析值", ImGuiTableColumnFlags_WidthFixed, 200);
+            // 自动计算宽度的列
+            ImGui::TableSetupColumn("状态", ImGuiTableColumnFlags_WidthFixed, 0.0f);
             ImGui::TableSetupColumn("延时", ImGuiTableColumnFlags_WidthFixed, 50);
             ImGui::TableSetupColumn("类型", ImGuiTableColumnFlags_WidthFixed, 70);
-            ImGui::TableSetupColumn("解析", ImGuiTableColumnFlags_WidthFixed, 50);
-            ImGui::TableSetupColumn("操作", ImGuiTableColumnFlags_WidthFixed, 100);
+            ImGui::TableSetupColumn("解析", ImGuiTableColumnFlags_WidthFixed, 0.0f);
+            ImGui::TableSetupColumn("操作", ImGuiTableColumnFlags_WidthFixed, 0.0f);
 
             // 自定义Header行，支持全选checkbox
             ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
@@ -1091,25 +1100,28 @@ namespace I2CDebugger {
         auto& entries = m_viewModel->GetCurrentGroup1().periodicTriggerEntries;
 
         ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-            ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY |
-            ImGuiTableFlags_SizingStretchProp;
+            ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollX |
+            ImGuiTableFlags_SizingFixedFit;
 
         float tableHeight = ImGui::GetContentRegionAvail().y - 40;
 
-        // 增加解析值列，共12列
         if (ImGui::BeginTable("PeriodicTriggerTable", 12, flags, ImVec2(0, tableHeight))) {
             ImGui::TableSetupColumn("##En", ImGuiTableColumnFlags_WidthFixed, 25);
             ImGui::TableSetupColumn("序号", ImGuiTableColumnFlags_WidthFixed, 35);
-            ImGui::TableSetupColumn("Reg地址", ImGuiTableColumnFlags_WidthFixed, 70);
+            ImGui::TableSetupColumn("Reg地址", ImGuiTableColumnFlags_WidthFixed, 60);
             ImGui::TableSetupColumn("长度", ImGuiTableColumnFlags_WidthFixed, 40);
-            ImGui::TableSetupColumn("寄存器值(Raw)", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("解析值", ImGuiTableColumnFlags_WidthFixed, 80);
-            ImGui::TableSetupColumn("状态", ImGuiTableColumnFlags_WidthFixed, 40);
-            ImGui::TableSetupColumn("NAK", ImGuiTableColumnFlags_WidthFixed, 45);
+            ImGui::TableSetupColumn("寄存器值(Raw)", ImGuiTableColumnFlags_WidthStretch, 150);
+            ImGui::TableSetupColumn("解析值", ImGuiTableColumnFlags_WidthFixed, 200);
+
+            // 下列纯显示或按钮列，统一不传宽度使其 100% 贴合内容
+            ImGui::TableSetupColumn("状态", ImGuiTableColumnFlags_WidthFixed, 0.0f);
+            ImGui::TableSetupColumn("NAK", ImGuiTableColumnFlags_WidthFixed, 0.0f);
+
             ImGui::TableSetupColumn("延时", ImGuiTableColumnFlags_WidthFixed, 50);
             ImGui::TableSetupColumn("类型", ImGuiTableColumnFlags_WidthFixed, 70);
-            ImGui::TableSetupColumn("曲线", ImGuiTableColumnFlags_WidthFixed, 80);
-            ImGui::TableSetupColumn("操作", ImGuiTableColumnFlags_WidthFixed, 100);
+
+            ImGui::TableSetupColumn("曲线", ImGuiTableColumnFlags_WidthFixed, 0.0f);
+            ImGui::TableSetupColumn("操作", ImGuiTableColumnFlags_WidthFixed, 0.0f);
 
             // 自定义Header行，支持全选checkbox
             ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
