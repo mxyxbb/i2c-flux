@@ -104,6 +104,7 @@ namespace I2CDebugger {
 
         // 单次触发解析
         void UpdateSingleParsedValue(size_t entryIndex);
+        void UpdateSingleRawFromParsedValue(size_t entryIndex, const std::string& strValue);
         void UpdateSingleRawFromParsedValue(size_t entryIndex, double newValue);
         ParseConfig& GetSingleParseConfig(size_t entryIndex);
         void SetSingleParseConfig(size_t entryIndex, const ParseConfig& config);
@@ -111,6 +112,7 @@ namespace I2CDebugger {
         // 周期触发解析（已有，保持不变）
         void UpdateParsedValue(size_t entryIndex);// 使用读取公式计算解析值
         void UpdateRawFromParsedValue(size_t entryIndex, double newValue);// 使用写入公式从十进制值计算原始字节
+        void UpdateRawFromParsedValue(size_t entryIndex, const std::string& strValue);// 从字符串值计算原始字节
         ParseConfig& GetParseConfig(size_t entryIndex);
         void SetParseConfig(size_t entryIndex, const ParseConfig& config);
 

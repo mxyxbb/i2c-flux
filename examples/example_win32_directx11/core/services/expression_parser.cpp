@@ -52,6 +52,21 @@ namespace I2CDebugger {
             return result;
         }
 
+        // ==========================================
+        // 【新增】：字符串解析模式
+        // ==========================================
+        if (formula == "str" || formula == "string") {
+            result.isString = true;
+            std::string parsedStr;
+            for (uint8_t byte : rawData) {
+                if (byte == 0x00) break; // 遇到字符串结束符 \0 停止
+                parsedStr.push_back(static_cast<char>(byte));
+            }
+            result.stringValue = parsedStr;
+            result.success = true;
+            return result;
+        }
+
         // 设置字节变量
         SetByteVariables(rawData);
 
@@ -86,10 +101,12 @@ namespace I2CDebugger {
 
         // 计算结果
         result.value = expression.value();
+        result.isString = false;
         result.success = true;
         return result;
     }
 
+    // 数值写入模式（原有函数保持不变）
     std::vector<uint8_t> ExpressionParser::EvaluateWriteFormula(const std::string& formula,
         double value,
         size_t byteCount,
@@ -105,6 +122,12 @@ namespace I2CDebugger {
                 result.push_back(static_cast<uint8_t>((intValue >> (i * 8)) & 0xFF));
             }
             success = true;
+            return result;
+        }
+
+        // 防御：如果是 str 模式，但误调了 double 接口
+        if (formula == "str" || formula == "string") {
+            errorMsg = "字符串模式不支持数值输入";
             return result;
         }
 
@@ -139,10 +162,51 @@ namespace I2CDebugger {
         return result;
     }
 
+    // ==========================================
+    // 【新增】：字符串写入模式重载
+    // 专门用于处理 string -> Raw Bytes 的转换
+    // ==========================================
+    std::vector<uint8_t> ExpressionParser::EvaluateWriteFormula(const std::string& formula,
+        const std::string& strValue,
+        size_t byteCount,
+        bool& success,
+        std::string& errorMsg) {
+        std::vector<uint8_t> result;
+        success = false;
+
+        if (formula == "str" || formula == "string") {
+            for (size_t i = 0; i < byteCount; ++i) {
+                if (i < strValue.length()) {
+                    result.push_back(static_cast<uint8_t>(strValue[i]));
+                }
+                else {
+                    result.push_back(0x00); // 如果目标长度大于字符串长度，补 0
+                }
+            }
+            success = true;
+            return result;
+        }
+
+        // 如果并非 str 模式但调用了此接口，尝试将字符串转为 double 交给原函数处理
+        try {
+            double numValue = std::stod(strValue);
+            return EvaluateWriteFormula(formula, numValue, byteCount, success, errorMsg);
+        }
+        catch (...) {
+            errorMsg = "无效的输入格式";
+            return result;
+        }
+    }
+
     bool ExpressionParser::ValidateFormula(const std::string& formula, std::string& errorMsg) {
         if (formula.empty()) {
             errorMsg = "公式为空";
             return false;
+        }
+
+        // 【新增】：支持 str 常规校验
+        if (formula == "str" || formula == "string") {
+            return true;
         }
 
         // 创建符号表，添加所有可能的变量
@@ -184,18 +248,18 @@ namespace I2CDebugger {
             "写入公式变量:\n"
             "  value 或 v    : 输入的十进制值\n"
             "\n"
+            "特殊公式:\n"
+            "  str           : 将数据视为ASCII字符串进行解析或写入\n" // 【新增】说明
+            "\n"
             "=== 公式示例 ===\n"
             "读取公式:\n"
             "  (b1 << 8) | b0        : 2字节小端转整数\n"
             "  (b0 << 8) | b1        : 2字节大端转整数\n"
-            "  b0 * 0.1              : 单字节乘系数\n"
-            "  (b1 << 8 | b0) / 100  : 转换后除以100\n"
-            "  b0 & 0x0F             : 取低4位\n"
+            "  str                   : 解析为文本字符串\n" // 【新增】示例
             "\n"
             "写入公式:\n"
-            "  value                 : 直接使用输入值\n"
             "  value * 100           : 输入值乘以100\n"
-            "  value / 0.1           : 输入值除以0.1\n";
+            "  str                   : 直接写入ASCII字符\n";
     }
 
 }

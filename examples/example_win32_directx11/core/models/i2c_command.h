@@ -21,6 +21,10 @@ namespace I2CDebugger {
         double parsedValue = 0.0;
         bool parseSuccess = false;
         std::string lastError;
+
+        // ===== 新增 =====
+        bool isString = false;        // 标记解析结果是否为字符串
+        std::string stringValue = ""; // 存放字符串解析结果
     };
 
     // ========== 错误类型枚举 ==========

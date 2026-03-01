@@ -19,6 +19,10 @@ namespace I2CDebugger {
         bool success = false;
         double value = 0.0;
         std::string errorMsg;
+
+        // ===== 新增 =====
+        bool isString = false;        // 标记解析结果是否为字符串
+        std::string stringValue = ""; // 存放字符串解析结果
     };
 
     class ExpressionParser {
@@ -47,6 +51,14 @@ namespace I2CDebugger {
 
         // 获取公式帮助文本
         static std::string GetFormulaHelp();
+
+        // ===== 新增 =====
+    // 专门用于处理用户输入为字符串时的写入反算
+        std::vector<uint8_t> EvaluateWriteFormula(const std::string& formula,
+            const std::string& strValue, // 接收字符串输入
+            size_t byteCount,
+            bool& success,
+            std::string& errorMsg);
 
     private:
         // 设置字节变量 b0, b1, b2... 和 w0, w1...

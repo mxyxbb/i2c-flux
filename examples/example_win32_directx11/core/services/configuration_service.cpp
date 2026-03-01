@@ -17,7 +17,7 @@ namespace I2CDebugger {
         // 新增：保存 parsedValue 
         j["parsedValue"] = config.parsedValue;
         j["parseSuccess"] = config.parseSuccess;
-        
+        j["stringValue"] = config.stringValue;
 
         return j;
     }
@@ -31,6 +31,7 @@ namespace I2CDebugger {
         // 新增：读取 parsedValue
         if (j.contains("parsedValue")) config.parsedValue = j["parsedValue"].get<double>();
         if (j.contains("parseSuccess")) config.parseSuccess = j["parseSuccess"].get<bool>();
+        if (j.contains("stringValue")) config.stringValue = j["stringValue"].get<std::string>();
 
         return config;
     }

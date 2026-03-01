@@ -613,9 +613,42 @@ namespace I2CDebugger {
             config.readFormula, entry.data);
 
         config.parsedValue = result.value;
+        config.stringValue = result.stringValue;
         config.parseSuccess = result.success;
         if (!result.success) {
             config.lastError = result.errorMsg;
+        }
+    }
+
+    // =========================================================
+        // 【新增】：单次触发 - 支持字符串的 Raw 数据反算
+        // =========================================================
+    void I2CTableViewModel::UpdateSingleRawFromParsedValue(size_t entryIndex, const std::string& strValue) {
+        auto& group = GetCurrentGroup1();
+        if (entryIndex >= group.singleTriggerEntries.size()) return;
+
+        auto& entry = group.singleTriggerEntries[entryIndex];
+        auto& config = entry.parseConfig;
+
+        bool success = false;
+        std::string errorMsg;
+
+        // 调用 ExpressionParser 中支持 string 的重载接口
+        auto rawData = m_expressionParser->EvaluateWriteFormula(
+            config.writeFormula,
+            strValue,
+            entry.length,
+            success,
+            errorMsg);
+
+        if (success) {
+            entry.data = rawData;
+            config.stringValue = strValue; // 更新配置里的 string 值
+            config.parseSuccess = true;
+        }
+        else {
+            config.lastError = errorMsg;
+            config.parseSuccess = false;
         }
     }
 
@@ -629,6 +662,7 @@ namespace I2CDebugger {
         bool success = false;
         std::string errorMsg;
 
+        // 调用 ExpressionParser 中支持 string 的重载接口
         auto rawData = m_expressionParser->EvaluateWriteFormula(
             config.writeFormula,
             newValue,
@@ -638,7 +672,7 @@ namespace I2CDebugger {
 
         if (success) {
             entry.data = rawData;
-            config.parsedValue = newValue;
+            config.parsedValue = newValue; // 更新配置里的 string 值
             config.parseSuccess = true;
         }
         else {
@@ -646,7 +680,6 @@ namespace I2CDebugger {
             config.parseSuccess = false;
         }
     }
-
     ParseConfig& I2CTableViewModel::GetSingleParseConfig(size_t entryIndex) {
         auto& group = GetCurrentGroup1();
         static ParseConfig emptyConfig;
@@ -688,6 +721,7 @@ namespace I2CDebugger {
             config.readFormula, entry.data);
 
         config.parsedValue = result.value;
+        config.stringValue = result.stringValue;
         config.parseSuccess = result.success;
         if (!result.success) {
             config.lastError = result.errorMsg;
@@ -726,6 +760,33 @@ namespace I2CDebugger {
         }
     }
 
+    void I2CTableViewModel::UpdateRawFromParsedValue(size_t entryIndex, const std::string& strValue) {
+        auto& group = GetCurrentGroup1();
+        if (entryIndex >= group.periodicTriggerEntries.size()) return;
+
+        auto& entry = group.periodicTriggerEntries[entryIndex];
+        auto& config = entry.parseConfig;
+
+        bool success = false;
+        std::string errorMsg;
+
+        auto rawData = m_expressionParser->EvaluateWriteFormula(
+            config.writeFormula,
+            strValue,
+            entry.length,
+            success,
+            errorMsg);
+
+        if (success) {
+            entry.data = rawData;
+            config.stringValue = strValue;
+            config.parseSuccess = true;
+        }
+        else {
+            config.lastError = errorMsg;
+            config.parseSuccess = false;
+        }
+    }
     ParseConfig& I2CTableViewModel::GetParseConfig(size_t entryIndex) {
         auto& group = GetCurrentGroup1();
         static ParseConfig emptyConfig;

@@ -684,8 +684,14 @@ namespace I2CDebugger {
 
                     if (entry.parseConfig.enabled) {
                         if (isWriteType && !entry.parseConfig.writeFormula.empty()) {
-                            // 写入模式：利用解析值和新的长度重新生成 Raw
-                            m_viewModel->UpdateSingleRawFromParsedValue(i, entry.parseConfig.parsedValue);
+                            // 【修改】写入模式：根据是否是 str 模式选择对应的重载接口
+                            bool isStringMode = (entry.parseConfig.writeFormula == "str" || entry.parseConfig.writeFormula == "string");
+                            if (isStringMode) {
+                                m_viewModel->UpdateSingleRawFromParsedValue(i, entry.parseConfig.stringValue);
+                            }
+                            else {
+                                m_viewModel->UpdateSingleRawFromParsedValue(i, entry.parseConfig.parsedValue);
+                            }
                         }
                         else if (isReadType && !entry.parseConfig.readFormula.empty()) {
                             // 读取模式：利用补0后的新 Raw 重新计算解析值
@@ -723,9 +729,19 @@ namespace I2CDebugger {
                         (isReadType && !entry.parseConfig.readFormula.empty());
 
                     if (canParse) {
-                        char parsedBuf[64];
+                        char parsedBuf[256]; // 【修改】扩大缓冲区以支持较长字符串
+
+                        // 【新增】判断是否为字符串解析模式
+                        bool isStringMode = (isReadType && (entry.parseConfig.readFormula == "str" || entry.parseConfig.readFormula == "string")) ||
+                            (isWriteType && (entry.parseConfig.writeFormula == "str" || entry.parseConfig.writeFormula == "string"));
+
                         if (entry.parseConfig.parseSuccess || entry.data.empty()) {
-                            std::snprintf(parsedBuf, sizeof(parsedBuf), "%.8g", entry.parseConfig.parsedValue);
+                            if (isStringMode) {
+                                std::snprintf(parsedBuf, sizeof(parsedBuf), "%s", entry.parseConfig.stringValue.c_str());
+                            }
+                            else {
+                                std::snprintf(parsedBuf, sizeof(parsedBuf), "%.8g", entry.parseConfig.parsedValue);
+                            }
                         }
                         else {
                             std::strncpy(parsedBuf, "ERR", sizeof(parsedBuf));
@@ -741,13 +757,20 @@ namespace I2CDebugger {
                         ImGui::SetNextItemWidth(-FLT_MIN);
                         // 统一为 InputText，实现双向修改
                         if (ImGui::InputText("##parsed", parsedBuf, sizeof(parsedBuf), ImGuiInputTextFlags_EnterReturnsTrue)) {
-                            try {
-                                double newValue = std::stod(parsedBuf);
-                                entry.parseConfig.parsedValue = newValue;
-                                // 用户手动输入了解析值，反推并更新 Raw 数据
-                                m_viewModel->UpdateSingleRawFromParsedValue(i, newValue);
+                            if (isStringMode) {
+                                // 【新增】字符串模式下的反算
+                                entry.parseConfig.stringValue = parsedBuf;
+                                m_viewModel->UpdateSingleRawFromParsedValue(i, std::string(parsedBuf));
                             }
-                            catch (...) {}
+                            else {
+                                // 原有的 double 模式反算
+                                try {
+                                    double newValue = std::stod(parsedBuf);
+                                    entry.parseConfig.parsedValue = newValue;
+                                    m_viewModel->UpdateSingleRawFromParsedValue(i, newValue);
+                                }
+                                catch (...) {}
+                            }
                         }
 
                         // 2. 严格根据记录的标志来 Pop 颜色，确保成对出现
@@ -757,10 +780,10 @@ namespace I2CDebugger {
 
                         if (ImGui::IsItemHovered()) {
                             if (!entry.parseConfig.parseSuccess && !entry.parseConfig.lastError.empty()) {
-                                ImGui::SetTooltip("解析错误: %s\n输入十进制值，按Enter确认", entry.parseConfig.lastError.c_str());
+                                ImGui::SetTooltip("解析错误: %s\n按Enter确认", entry.parseConfig.lastError.c_str());
                             }
                             else {
-                                ImGui::SetTooltip("输入十进制值，按Enter确认\n将同步反算并更新 Raw 数据");
+                                ImGui::SetTooltip("输入新值并按Enter确认\n将同步反算并更新 Raw 数据");
                             }
                         }
                     }
@@ -771,6 +794,7 @@ namespace I2CDebugger {
                 else {
                     ImGui::TextDisabled("--");
                 }
+
                 // 列6: 状态
                 ImGui::TableSetColumnIndex(6);
                 if (entry.data.empty() && entry.lastErrorType == ErrorType::None) {
@@ -1222,8 +1246,14 @@ namespace I2CDebugger {
 
                     if (entry.parseConfig.enabled) {
                         if (isWriteType && !entry.parseConfig.writeFormula.empty()) {
-                            // 写入模式：利用解析值和新的长度重新生成 Raw
-                            m_viewModel->UpdateRawFromParsedValue(i, entry.parseConfig.parsedValue);
+                            // 【修改】写入模式：利用解析值和新的长度重新生成 Raw
+                            bool isStringMode = (entry.parseConfig.writeFormula == "str" || entry.parseConfig.writeFormula == "string");
+                            if (isStringMode) {
+                                m_viewModel->UpdateRawFromParsedValue(i, entry.parseConfig.stringValue);
+                            }
+                            else {
+                                m_viewModel->UpdateRawFromParsedValue(i, entry.parseConfig.parsedValue);
+                            }
                         }
                         else if (isReadType && !entry.parseConfig.readFormula.empty()) {
                             // 读取模式：利用补0后的新 Raw 重新计算解析值
@@ -1261,9 +1291,19 @@ namespace I2CDebugger {
                         (isReadType && !entry.parseConfig.readFormula.empty());
 
                     if (canParse) {
-                        char parsedBuf[64];
+                        char parsedBuf[256];
+
+                        // 【新增】字符串模式判断
+                        bool isStringMode = (isReadType && (entry.parseConfig.readFormula == "str" || entry.parseConfig.readFormula == "string")) ||
+                            (isWriteType && (entry.parseConfig.writeFormula == "str" || entry.parseConfig.writeFormula == "string"));
+
                         if (entry.parseConfig.parseSuccess || entry.data.empty()) {
-                            std::snprintf(parsedBuf, sizeof(parsedBuf), "%.8g", entry.parseConfig.parsedValue);
+                            if (isStringMode) {
+                                std::snprintf(parsedBuf, sizeof(parsedBuf), "%s", entry.parseConfig.stringValue.c_str());
+                            }
+                            else {
+                                std::snprintf(parsedBuf, sizeof(parsedBuf), "%.8g", entry.parseConfig.parsedValue);
+                            }
                         }
                         else {
                             std::strncpy(parsedBuf, "ERR", sizeof(parsedBuf));
@@ -1279,13 +1319,20 @@ namespace I2CDebugger {
                         ImGui::SetNextItemWidth(-FLT_MIN);
                         // 统一为 InputText，实现双向修改
                         if (ImGui::InputText("##parsed", parsedBuf, sizeof(parsedBuf), ImGuiInputTextFlags_EnterReturnsTrue)) {
-                            try {
-                                double newValue = std::stod(parsedBuf);
-                                entry.parseConfig.parsedValue = newValue;
-                                // 用户手动输入了解析值，反推并更新 Raw 数据
-                                m_viewModel->UpdateRawFromParsedValue(i, newValue);
+                            if (isStringMode) {
+                                // 【新增】字符串输入反算
+                                entry.parseConfig.stringValue = parsedBuf;
+                                m_viewModel->UpdateRawFromParsedValue(i, std::string(parsedBuf));
                             }
-                            catch (...) {}
+                            else {
+                                try {
+                                    double newValue = std::stod(parsedBuf);
+                                    entry.parseConfig.parsedValue = newValue;
+                                    // 用户手动输入了解析值，反推并更新 Raw 数据
+                                    m_viewModel->UpdateRawFromParsedValue(i, newValue);
+                                }
+                                catch (...) {}
+                            }
                         }
 
                         // 2. 严格根据记录的标志来 Pop 颜色，确保成对出现
@@ -1295,10 +1342,10 @@ namespace I2CDebugger {
 
                         if (ImGui::IsItemHovered()) {
                             if (!entry.parseConfig.parseSuccess && !entry.parseConfig.lastError.empty()) {
-                                ImGui::SetTooltip("解析错误: %s\n输入十进制值，按Enter确认", entry.parseConfig.lastError.c_str());
+                                ImGui::SetTooltip("解析错误: %s\n按Enter确认", entry.parseConfig.lastError.c_str());
                             }
                             else {
-                                ImGui::SetTooltip("输入十进制值，按Enter确认\n将同步反算并更新 Raw 数据");
+                                ImGui::SetTooltip("输入新值并按Enter确认\n将同步反算并更新 Raw 数据");
                             }
                         }
                     }
@@ -1992,17 +2039,3 @@ namespace I2CDebugger {
 
 }
 
-
-/*再帮我更新一下quick_add_processor的逻辑
-
-对于AddPeriodicEntry，一共解析7个值
-
-第一个值为文本“read/write”，第二个值为“寄存器地址(16进制)“，第三个值为"长度(10进制)"，第四个值为寄存器值raw hex,第五个值为解析值，第六个值为延时，第七个值为读取公式或写入公式
-
-如果第一个值是write，则第7个值是"写入公式"，然后如果写入公式有值，则通过解析值反算出raw hex第四个值是解析前的10进制数据，第五个值是别名；
-
-如果第一个值是read，则第三个值是"读取长度(10进制)"，第四个值是"读取公式"，然后第五个值是别名。
-
-数值可以不填，需留“，”做占位符
-
-对于AddSingleEntry，*/
