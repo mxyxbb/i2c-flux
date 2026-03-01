@@ -1034,14 +1034,15 @@ namespace I2CDebugger {
 
         ImVec2 center = ImGui::GetMainViewport()->GetCenter();
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_FirstUseEver);
 
-        if (ImGui::BeginPopupModal("单次触发解析配置", &m_showSingleParsePopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ImGui::BeginPopupModal("单次触发解析配置", &m_showSingleParsePopup, ImGuiWindowFlags_None)) {
             auto& entry = entries[m_singleParseEditIndex];
             bool isWriteType = (entry.type == CommandType::Write);
 
             // 别名
             ImGui::Text("别名:");
-            ImGui::SetNextItemWidth(300);
+            ImGui::SetNextItemWidth(-1);
             ImGui::InputText("##SingleAlias", m_aliasBuffer, sizeof(m_aliasBuffer));
 
             ImGui::Spacing();
@@ -1050,7 +1051,7 @@ namespace I2CDebugger {
 
             // 读取公式
             ImGui::Text("读取公式 (Raw字节 → 十进制值):");
-            ImGui::SetNextItemWidth(300);
+            ImGui::SetNextItemWidth(-1);
             ImGui::InputText("##SingleReadFormula", m_readFormulaInput, sizeof(m_readFormulaInput));
             ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
                 "示例: (b1 << 8) | b0, w0 * 0.1");
@@ -1058,26 +1059,18 @@ namespace I2CDebugger {
             ImGui::Spacing();
 
             // 写入公式（仅写入命令显示）
-            if (isWriteType) {
-                ImGui::Text("写入公式 (十进制值 → Raw字节):");
-                ImGui::SetNextItemWidth(300);
-                ImGui::InputText("##SingleWriteFormula", m_writeFormulaInput, sizeof(m_writeFormulaInput));
-                ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
-                    "示例: value, value * 10");
-            }
+            ImGui::Text("写入公式 (十进制值 → Raw字节):");
+            ImGui::SetNextItemWidth(-1);
+            ImGui::InputText("##SingleWriteFormula", m_writeFormulaInput, sizeof(m_writeFormulaInput));
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+                "示例: value,v , value * 10");
+
 
             ImGui::Spacing();
 
             // 公式帮助
             if (ImGui::CollapsingHeader("公式变量说明")) {
-                ImGui::TextWrapped(
-                    "读取公式变量:\n"
-                    "  b0, b1, b2... : 第1, 2, 3...个字节\n"
-                    "  w0, w1...     : 小端字, w0 = (b1<<8)|b0\n"
-                    "\n"
-                    "写入公式变量:\n"
-                    "  value 或 v    : 输入的十进制值\n"
-                );
+                ImGui::TextWrapped("%s", m_viewModel->GetFormulaHelp().c_str());
             }
 
             ImGui::Spacing();
@@ -1085,7 +1078,7 @@ namespace I2CDebugger {
             ImGui::Spacing();
 
             // 按钮
-            if (ImGui::Button("确定", ImVec2(80, 0))) {
+            if (ImGui::Button("确定", ImVec2(100, 0))) {
                 entry.parseConfig.alias = m_aliasBuffer;
                 entry.parseConfig.readFormula = m_readFormulaInput;
                 entry.parseConfig.writeFormula = m_writeFormulaInput;
@@ -1100,12 +1093,12 @@ namespace I2CDebugger {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("取消", ImVec2(80, 0))) {
+            if (ImGui::Button("取消", ImVec2(100, 0))) {
                 m_showSingleParsePopup = false;
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("清除", ImVec2(80, 0))) {
+            if (ImGui::Button("清除", ImVec2(100, 0))) {
                 entry.parseConfig.alias.clear();
                 entry.parseConfig.readFormula.clear();
                 entry.parseConfig.writeFormula.clear();
@@ -1613,9 +1606,12 @@ namespace I2CDebugger {
 
         ImVec2 center = ImGui::GetMainViewport()->GetCenter();
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        ImGui::SetNextWindowSize(ImVec2(450, 380), ImGuiCond_FirstUseEver);
 
-        if (ImGui::BeginPopupModal("解析配置", &m_showParsePopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+        // 使用 ImGuiCond_FirstUseEver 意味着这个初始大小只会应用一次，之后会记住用户拖拽调整的宽度
+        ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_FirstUseEver);
+
+        // 注意：保持 ImGuiWindowFlags_None 不变，千万别加 AlwaysAutoResize，否则就不能拖拽了
+        if (ImGui::BeginPopupModal("解析配置", &m_showParsePopup, ImGuiWindowFlags_None)) {
             auto& entry = entries[m_parseEditIndex];
 
             // 别名
@@ -1649,28 +1645,7 @@ namespace I2CDebugger {
 
             // 公式帮助
             if (ImGui::CollapsingHeader("公式变量说明")) {
-                ImGui::TextWrapped(
-                    "=== 公式变量说明 ===\n"
-                    "读取公式变量:\n"
-                    "  b0, b1, b2... : 第1, 2, 3...个字节\n"
-                    "  w0, w1...     : 小端字, w0 = (b1<<8)|b0\n"
-                    "\n"
-                    "写入公式变量:\n"
-                    "  value 或 v    : 输入的十进制值\n"
-                    "\n"
-                    "=== 公式示例 ===\n"
-                    "读取公式:\n"
-                    "  (b1 << 8) | b0        : 2字节小端转整数\n"
-                    "  (b0 << 8) | b1        : 2字节大端转整数\n"
-                    "  b0 * 0.1              : 单字节乘系数\n"
-                    "  (b1 << 8 | b0) / 100  : 转换后除以100\n"
-                    "  b0 & 0x0F             : 取低4位\n"
-                    "\n"
-                    "写入公式:value / v\n"
-                    "  value                 : 直接使用输入值\n"
-                    "  value * 100           : 输入值乘以100\n"
-                    "  value / 0.1           : 输入值除以0.1\n"
-                );
+                ImGui::TextWrapped("%s", m_viewModel->GetFormulaHelp().c_str());
             }
 
             ImGui::Spacing();
