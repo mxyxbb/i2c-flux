@@ -966,7 +966,7 @@ namespace I2CDebugger {
             ImGui::SetNextItemWidth(300);
             ImGui::InputText("##RegFormula", m_readFormulaInput, sizeof(m_readFormulaInput));
             ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
-                "示例: (b1 << 8) | b0, w0 * 0.1, b0 / 10.0");
+                "示例: w0 * 0.1, b0 / 10.0");
 
             ImGui::Spacing();
 
@@ -978,9 +978,7 @@ namespace I2CDebugger {
                     "  w0, w1...     : 小端字, w0 = (b1<<8)|b0\n"
                     "\n"
                     "公式示例:\n"
-                    "  (b1 << 8) | b0   : 2字节小端转整数\n"
                     "  b0 * 0.1         : 单字节乘系数\n"
-                    "  b0 & 0x0F        : 取低4位\n"
                 );
             }
 
@@ -1054,7 +1052,7 @@ namespace I2CDebugger {
             ImGui::SetNextItemWidth(-1);
             ImGui::InputText("##SingleReadFormula", m_readFormulaInput, sizeof(m_readFormulaInput));
             ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
-                "示例: (b1 << 8) | b0, w0 * 0.1");
+                "示例: w0/32, b0+1");
 
             ImGui::Spacing();
 
@@ -1063,7 +1061,7 @@ namespace I2CDebugger {
             ImGui::SetNextItemWidth(-1);
             ImGui::InputText("##SingleWriteFormula", m_writeFormulaInput, sizeof(m_writeFormulaInput));
             ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
-                "示例: value,v , value * 10");
+                "示例: value,v , v*10");
 
 
             ImGui::Spacing();
@@ -1628,7 +1626,7 @@ namespace I2CDebugger {
             ImGui::SetNextItemWidth(-1);
             ImGui::InputText("##ReadFormula", m_readFormulaInput, sizeof(m_readFormulaInput));
             ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
-                "示例: (b1 << 8) | b0, w0 * 0.1, b0 / 10.0");
+                "示例: w0 * 0.1, b0 / 10.0");
 
             ImGui::Spacing();
 

@@ -93,7 +93,7 @@ namespace I2CDebugger {
             // 5. 对数拖拽输入框
             ImGui::SetNextItemWidth(70);
             // v_speed 设置为当前 scale 的 1%（0.01f），配合对数模式实现平滑拖拽
-            ImGui::DragFloat("##Scale", &ch->scale, ch->scale * 0.01f, 0.001f, 10000.0f, "%.3fx", ImGuiSliderFlags_Logarithmic);
+            ImGui::DragFloat("##Scale", &ch->scale, ch->scale * 0.1f, 0.001f, 10000.0f, "%.3fx", ImGuiSliderFlags_Logarithmic);
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("左右拖拽平滑缩放\n双击或Ctrl+单击手动输入");
 
             ImGui::SameLine(0, 2.0f);

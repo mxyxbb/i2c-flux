@@ -201,7 +201,7 @@ void I2CSimpleWindow::RenderSimpleOperation()
             ImGui::SetNextItemWidth(60);
             ImGui::InputText("##Length", data.lengthInput, sizeof(data.lengthInput));
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("10进制数，CP2112最大512");
+                ImGui::SetTooltip("10进制数，CP2112最大511");
             }
             ImGui::Text("读取结果:");
             ImGui::SameLine();
@@ -216,7 +216,7 @@ void I2CSimpleWindow::RenderSimpleOperation()
             ImGui::SetNextItemWidth(200);
             ImGui::InputText("##WriteData", data.writeDataInput, sizeof(data.writeDataInput));
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("16进制数，CP2112最大512个字节");
+                ImGui::SetTooltip("16进制数，CP2112最大511个字节");
             }
             ImGui::SameLine();
             ImGui::TextDisabled("(空格分隔)");

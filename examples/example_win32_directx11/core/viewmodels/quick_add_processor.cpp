@@ -51,56 +51,67 @@ namespace I2CDebugger {
                     std::string formula = tokens.size() > 3 ? tokens[3] : "";
                     std::string alias = tokens.size() > 4 ? tokens[4] : "";
 
-                    PeriodicTriggerEntry entry;
-                    entry.type = CommandType::Read;
-                    entry.regAddress = regAddr;
-                    entry.length = len;
-                    entry.parseConfig.readFormula = formula;
-                    entry.parseConfig.alias = alias;
-                    entry.parseConfig.enabled = !formula.empty();
-
                     if (tabType == 1) {
                         SingleTriggerEntry singleEntry;
-                        *(PeriodicTriggerEntry*)&singleEntry = entry;
+                        singleEntry.type = CommandType::Read;
+                        singleEntry.regAddress = regAddr;
+                        singleEntry.length = len;
+                        singleEntry.parseConfig.readFormula = formula;
+                        singleEntry.parseConfig.alias = alias;
+                        singleEntry.parseConfig.enabled = !formula.empty();
                         group.singleTriggerEntries.push_back(singleEntry);
                     }
                     else {
+                        PeriodicTriggerEntry entry;
+                        entry.type = CommandType::Read;
+                        entry.regAddress = regAddr;
+                        entry.length = len;
+                        entry.parseConfig.readFormula = formula;
+                        entry.parseConfig.alias = alias;
+                        entry.parseConfig.enabled = !formula.empty();
                         group.periodicTriggerEntries.push_back(entry);
                     }
-
                 }
                 else if (typeStr == "write") {
                     std::string formula = tokens.size() > 2 ? tokens[2] : "";
                     std::string decValueStr = tokens.size() > 3 ? tokens[3] : "";
                     std::string alias = tokens.size() > 4 ? tokens[4] : "";
 
-                    PeriodicTriggerEntry entry;
-                    entry.type = CommandType::Write;
-                    entry.regAddress = regAddr;
-                    entry.length = 1;
-                    entry.parseConfig.writeFormula = formula;
-                    entry.parseConfig.alias = alias;
-                    entry.parseConfig.enabled = !formula.empty();
-
                     size_t newIndex = 0;
+                    bool isEnabled = !formula.empty();
+
                     if (tabType == 1) {
                         SingleTriggerEntry singleEntry;
-                        *(PeriodicTriggerEntry*)&singleEntry = entry;
+                        singleEntry.type = CommandType::Write;
+                        singleEntry.regAddress = regAddr;
+                        singleEntry.length = 1;
+                        singleEntry.parseConfig.writeFormula = formula;
+                        singleEntry.parseConfig.alias = alias;
+                        singleEntry.parseConfig.enabled = isEnabled;
                         group.singleTriggerEntries.push_back(singleEntry);
                         newIndex = group.singleTriggerEntries.size() - 1;
                     }
                     else {
+                        PeriodicTriggerEntry entry;
+                        entry.type = CommandType::Write;
+                        entry.regAddress = regAddr;
+                        entry.length = 1;
+                        entry.parseConfig.writeFormula = formula;
+                        entry.parseConfig.alias = alias;
+                        entry.parseConfig.enabled = isEnabled;
                         group.periodicTriggerEntries.push_back(entry);
                         newIndex = group.periodicTriggerEntries.size() - 1;
                     }
 
-                    if (!decValueStr.empty() && entry.parseConfig.enabled) {
+                    if (!decValueStr.empty() && isEnabled) {
                         try {
                             double val = std::stod(decValueStr);
                             if (tabType == 1) viewModel->UpdateSingleRawFromParsedValue(newIndex, val);
                             else viewModel->UpdateRawFromParsedValue(newIndex, val);
                         }
-                        catch (...) {}
+                        catch (...) {
+                            // 忽略 stod 转换失败的情况
+                        }
                     }
                 }
             }
