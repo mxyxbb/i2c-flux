@@ -39,7 +39,8 @@ INT SMBus_Open(HID_SMBUS_DEVICE *device, char** string)
     {
         // Attempt open
         status = HidSmbus_Open(device, deviceNum, VID, PID);
-        SMBus_Reset(device);
+        //
+        status += HidSmbus_SetGpioConfig(device, 0x03, 0x00, 0x03, 0x01);
         // Check status
         if(status != HID_SMBUS_SUCCESS)
         {
@@ -55,6 +56,7 @@ INT SMBus_Close(HID_SMBUS_DEVICE device)
 {
     HID_SMBUS_STATUS status;
 
+    //SMBus_Reset(device);
     // Attempt close
     status = HidSmbus_Close(device);
     // Check status

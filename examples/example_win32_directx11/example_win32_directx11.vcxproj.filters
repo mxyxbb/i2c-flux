@@ -101,6 +101,9 @@
     <ClCompile Include="core\implot\implot_items.cpp" />
     <ClCompile Include="core\ui\views\quick_add_popup.cpp" />
     <ClCompile Include="core\viewmodels\quick_add_processor.cpp" />
+    <ClCompile Include="core\serial\src\serial.cc" />
+    <ClCompile Include="core\serial\src\impl\win.cc" />
+    <ClCompile Include="core\serial\src\impl\list_ports\list_ports_win.cc" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\README.txt" />
