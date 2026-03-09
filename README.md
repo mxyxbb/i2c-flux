@@ -35,8 +35,10 @@ download：[release](https://github.com/mxyxbb/i2c-flux/releases/tag/basic)
 ## 3. 调试软件使用
 操作窗口分为简单窗口和多命令表窗口，通过菜单栏的窗口选项控制显示，多个窗口打开时支持拖动布局。  
 绘图窗口通过菜单栏的绘图选项开启。  
-<img width="1254" height="742" alt="image" src="https://github.com/user-attachments/assets/749d59c6-7eb8-411f-9724-956083c9aec3" />  
-<img width="1234" height="742" alt="image" src="https://github.com/user-attachments/assets/dd086a0c-6676-46e1-880c-560d74295e35" />  
+<<img width="1228" height="739" alt="image" src="https://github.com/user-attachments/assets/3e6a8800-fb2f-4027-b04e-d2f237ac5cec" />
+
+<img width="1234" height="742" alt="image" src="https://github.com/user-attachments/assets/4847408d-c43e-4331-b361-9cecfade50df" />
+
 先介绍简单窗口  
 <img width="645" height="517" alt="image" src="https://github.com/user-attachments/assets/45bd23e1-fc90-47c8-a7bd-c959b0c35b3a" />  
 ### 3.1 简单窗口
