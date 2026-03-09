@@ -15,7 +15,7 @@ namespace I2CDebugger {
         void RenderDeviceConnection();
         void RenderSlaveScanner();
         void RenderSimpleOperation();
-
+        void RenderTooltip(const char* text);
         std::shared_ptr<I2CSimpleViewModel> m_viewModel;
     };
 

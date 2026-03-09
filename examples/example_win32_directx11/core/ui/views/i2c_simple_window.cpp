@@ -10,6 +10,13 @@ I2CSimpleWindow::I2CSimpleWindow(std::shared_ptr<I2CSimpleViewModel> viewModel)
 {
 }
 
+void I2CSimpleWindow::RenderTooltip(const char* text)
+{
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("%s", text);
+    }
+}
+
 //绘制活动指示灯
 static void DrawActivityIndicator(ActivityIndicator& indicator) {
     bool isOn = indicator.Update();
@@ -83,6 +90,7 @@ void I2CSimpleWindow::RenderDeviceConnection()
         if (ImGui::Button("连接设备", ImVec2(100, 0))) {
             m_viewModel->Connect();
         }
+        RenderTooltip("自动扫描CP2112或RPI2C");
     }
     
     // 连接状态

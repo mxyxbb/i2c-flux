@@ -7,6 +7,9 @@
 #define VID 0x10C4
 #define PID 0xEA90
 
+#define DEV_HEADER_NAME "CP2112"
+static char combinedString[256];
+
 HID_SMBUS_DEVICE_STR    deviceString;
 
 INT SMBus_Open(HID_SMBUS_DEVICE *device, char** string)
@@ -22,7 +25,12 @@ INT SMBus_Open(HID_SMBUS_DEVICE *device, char** string)
         {
             if(HidSmbus_GetString(i, VID, PID, deviceString, HID_SMBUS_GET_SERIAL_STR) == HID_SMBUS_SUCCESS)
             {
-                *string = deviceString;
+                // 将 DEV_HEADER_NAME 和底层的 deviceString 拼接。
+                // 这里加了一个下划线，出来的效果类似 "CP2112_xxxxx"。
+                // 你可以随时将 "%s_%s" 改为 "%s-%s" 或 "%s %s" 来适配 I2C-Flux 的 UI 命名风格
+                snprintf(combinedString, sizeof(combinedString), "%s_%s", DEV_HEADER_NAME, deviceString);
+                *string = combinedString;
+
                 deviceNum = i;
                 break;
             }

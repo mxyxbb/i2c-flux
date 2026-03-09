@@ -1,9 +1,11 @@
-#pragma once
+﻿#pragma once
 
 #include <vector>
 #include <cstdint>
 
 namespace RPI2C {
+
+    #define DEV_RPI2C_HEADER_NAME "RPI2C"
 
     // ==========================================
     // 1. 命令字与常量定义

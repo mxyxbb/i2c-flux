@@ -115,7 +115,12 @@ bool PMBus::Open(char** deviceName) {
             if (rx_packet.cmd == (RPI2C::CMD_GET_SIG | 0x80)) {
                 currentMode_ = DeviceMode::MODE_SERIAL;
                 if (deviceName) {
-                    *deviceName = strdup(port_info.port.c_str());
+                    // 利用 std::string 方便地进行安全拼接
+                    std::string fullName = std::string(DEV_RPI2C_HEADER_NAME) + "_" + port_info.port;
+
+                    // strdup 会在堆上重新分配内存并拷贝 fullName 的内容，
+                    // 所以即使 fullName 在 if 块结束后销毁，传出的指针依然有效。
+                    *deviceName = strdup(fullName.c_str());
                 }
                 return true;
             }
