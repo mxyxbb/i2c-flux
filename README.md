@@ -113,7 +113,10 @@
 13. 点击开始周期触发即可开始执行
 <img width="656" height="343" alt="image" src="https://github.com/user-attachments/assets/ca86eafe-7006-4719-85c9-600f031ac362" />
 <img width="872" height="393" alt="image" src="https://github.com/user-attachments/assets/590cf7b8-6b51-4cd8-b546-630cb6486a19" />
-<img width="1234" height="752" alt="image" src="https://github.com/user-attachments/assets/a768548d-c1e4-43f7-b08f-50a18516e92f" />
+
+https://github.com/user-attachments/assets/5aca0e86-a72c-455c-96b5-92937a1bf188
+
+
 
 #### 3.2.4 周期触发的数据记录
 开始记录按钮会将接收到的数据记录到指定路径下的csv文件中，重复记录时如果和已有文件名重复，会不询问直接覆盖掉当前文件。  
