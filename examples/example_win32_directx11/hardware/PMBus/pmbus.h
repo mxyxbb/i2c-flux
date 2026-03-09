@@ -64,7 +64,7 @@ private:
     RPI2C::Protocol protocolParser_;
 
     // 内部辅助函数：执行单条串口命令
-    bool executeSerialCommand(const std::vector<uint8_t>& tx_data, RPI2C::Packet& rx_packet, int retries = 5);
+    bool executeSerialCommand(const std::vector<uint8_t>& tx_data, RPI2C::Packet& rx_packet, int timeout_ms = 100);
 
     // --- 新增：Flush 机制相关变量 ---
     struct PendingTask {

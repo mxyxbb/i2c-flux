@@ -473,62 +473,321 @@ namespace I2CDebugger {
         }
 
         case TaskType::ReadAllRegisters: {
-            for (size_t i = 0; i < task.registerEntries.size() && m_isConnected; i++) {
-                ProcessPriorityTasks();
-                if (!m_isConnected) break;
+            if (m_useBatchMode) {
+                std::vector<std::vector<uint8_t>> batchResults(task.registerEntries.size());
+                std::vector<int> batchRet(task.registerEntries.size(), -1);
+                bool flushSuccess = false;
+                std::string batchError;
 
-                const auto& entry = task.registerEntries[i];
-                uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : task.slaveAddr;
-                ResponsePacket packet;
-                packet.controlId = 1;
-                packet.commandId = static_cast<uint32_t>(i);
-                packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count();
-
-                std::vector<uint8_t> result;
-                int ret;
                 {
                     std::lock_guard<std::mutex> lock(m_deviceMutex);
-                    ret = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, result);
-                    if (ret < 0) {
-                        packet.errorMsg = m_pmbus.GetLastError();
+                    m_pmbus.FlushOn();
+                    for (size_t i = 0; i < task.registerEntries.size() && m_isConnected; i++) {
+                        const auto& entry = task.registerEntries[i];
+                        uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : task.slaveAddr;
+                        // 此时传入的 batchResults[i] 生命周期绝对安全
+                        batchRet[i] = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, batchResults[i]);
+                    }
+                    flushSuccess = m_pmbus.Flush();
+                    if (!flushSuccess) batchError = m_pmbus.GetLastError();
+                    m_pmbus.FlushOff();
+                }
+
+                // 统一分发回调
+                for (size_t i = 0; i < task.registerEntries.size() && m_isConnected; i++) {
+                    ResponsePacket packet;
+                    packet.controlId = 1;
+                    packet.commandId = static_cast<uint32_t>(i);
+                    packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+
+                    // 如果容器内获取到了正确长度的数据，即为读取成功
+                    if (batchResults[i].size() == task.registerEntries[i].length) {
+                        packet.success = true;
+                        packet.rawData = batchResults[i];
+                        packet.errorType = ErrorType::None;
+                    }
+                    else {
+                        packet.success = false;
+                        packet.errorType = ErrorType::SlaveNotResponse;
+                        packet.errorMsg = batchError.empty() ? "Batch Read Failed" : batchError;
+                    }
+
+                    if (m_dataCallback) {
+                        std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                        m_callbackQueue.push([this, packet]() { m_dataCallback(packet); });
                     }
                 }
+            }
+            else {
+                for (size_t i = 0; i < task.registerEntries.size() && m_isConnected; i++) {
+                    ProcessPriorityTasks();
+                    if (!m_isConnected) break;
 
-                packet.success = (ret >= 0);
-                packet.errorType = GetErrorType(ret);
+                    const auto& entry = task.registerEntries[i];
+                    uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : task.slaveAddr;
+                    ResponsePacket packet;
+                    packet.controlId = 1;
+                    packet.commandId = static_cast<uint32_t>(i);
+                    packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
 
-                if (packet.success) {
-                    packet.rawData = result;
+                    std::vector<uint8_t> result;
+                    int ret;
+                    {
+                        std::lock_guard<std::mutex> lock(m_deviceMutex);
+                        ret = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, result);
+                        if (ret < 0) {
+                            packet.errorMsg = m_pmbus.GetLastError();
+                        }
+                    }
+
+                    packet.success = (ret >= 0);
+                    packet.errorType = GetErrorType(ret);
+
+                    if (packet.success) {
+                        packet.rawData = result;
+                    }
+
+                    if (m_dataCallback) {
+                        std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                        m_callbackQueue.push([this, packet]() {
+                            m_dataCallback(packet);
+                            });
+                    }
+
+                    if (ret == DEVICE_NOT_CONNECTED) {
+                        HandleDeviceDisconnected();
+                        break;
+                    }
+                }
+            }
+            
+            break;
+        }
+
+        case TaskType::ExecuteAllCommands: {
+            if (m_useBatchMode) {
+                std::vector<std::vector<uint8_t>> batchResults(task.singleEntries.size());
+                std::vector<int> batchRet(task.singleEntries.size(), -1);
+                bool flushSuccess = false;
+                std::string batchError;
+
+                {
+                    std::lock_guard<std::mutex> lock(m_deviceMutex);
+                    m_pmbus.FlushOn();
+                    for (size_t i = 0; i < task.singleEntries.size() && m_isConnected; i++) {
+                        const auto& entry = task.singleEntries[i];
+                        if (!entry.enabled) continue;
+
+                        uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : task.slaveAddr;
+                        switch (entry.type) {
+                        case CommandType::Read:
+                            batchRet[i] = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, batchResults[i]);
+                            break;
+                        case CommandType::Write:
+                            batchRet[i] = m_pmbus.Write(slaveAddr, entry.regAddress, entry.data);
+                            break;
+                        case CommandType::SendCommand:
+                            batchRet[i] = m_pmbus.SendByte(slaveAddr, entry.regAddress);
+                            break;
+                        }
+
+                        // 支持延时：中间截断 Flush 一次，等待后再继续装填
+                        if (entry.delayMs > 0) {
+                            m_pmbus.Flush();
+                            std::this_thread::sleep_for(std::chrono::milliseconds(entry.delayMs));
+                        }
+                    }
+                    flushSuccess = m_pmbus.Flush();
+                    if (!flushSuccess) batchError = m_pmbus.GetLastError();
+                    m_pmbus.FlushOff();
                 }
 
-                if (m_dataCallback) {
-                    std::lock_guard<std::mutex> cbLock(m_callbackMutex);
-                    m_callbackQueue.push([this, packet]() {
-                        m_dataCallback(packet);
-                        });
-                }
+                for (size_t i = 0; i < task.singleEntries.size() && m_isConnected; i++) {
+                    const auto& entry = task.singleEntries[i];
+                    if (!entry.enabled) continue;
 
-                if (ret == DEVICE_NOT_CONNECTED) {
-                    HandleDeviceDisconnected();
-                    break;
+                    ResponsePacket packet;
+                    packet.controlId = 2;
+                    packet.commandId = static_cast<uint32_t>(i);
+                    packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+
+                    if (entry.type == CommandType::Read) {
+                        if (batchResults[i].size() == entry.length) {
+                            packet.success = true;
+                            packet.rawData = batchResults[i];
+                        }
+                        else {
+                            packet.success = false;
+                            packet.errorMsg = batchError.empty() ? "Batch Read Mismatch" : batchError;
+                        }
+                    }
+                    else {
+                        packet.success = flushSuccess;
+                        if (!flushSuccess) packet.errorMsg = batchError;
+                    }
+
+                    if (m_dataCallback) {
+                        std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                        m_callbackQueue.push([this, packet]() { m_dataCallback(packet); });
+                    }
+                }
+            }
+            else {
+                for (size_t i = 0; i < task.singleEntries.size() && m_isConnected; i++) {
+                    ProcessPriorityTasks();
+                    if (!m_isConnected) break;
+
+                    const auto& entry = task.singleEntries[i];
+                    if (!entry.enabled) continue;
+
+                    uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : task.slaveAddr;
+
+                    ResponsePacket packet;
+                    packet.controlId = 2;
+                    packet.commandId = static_cast<uint32_t>(i);
+                    packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+
+                    int ret = 0;
+
+                    {
+                        std::lock_guard<std::mutex> lock(m_deviceMutex);
+                        switch (entry.type) {
+                        case CommandType::Read: {
+                            std::vector<uint8_t> result;
+                            ret = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, result);
+                            if (ret >= 0) {
+                                packet.rawData = result;
+                            }
+                            break;
+                        }
+                        case CommandType::Write:ret = m_pmbus.Write(slaveAddr, entry.regAddress, entry.data);
+                            break;
+                        case CommandType::SendCommand:
+                            ret = m_pmbus.SendByte(slaveAddr, entry.regAddress);
+                            break;
+                        }
+
+                        if (ret < 0) {
+                            packet.errorMsg = m_pmbus.GetLastError();
+                        }
+                    }
+
+                    packet.success = (ret >= 0);
+                    packet.errorType = GetErrorType(ret);
+
+                    if (m_dataCallback) {
+                        std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                        m_callbackQueue.push([this, packet]() {
+                            m_dataCallback(packet);
+                            });
+                    }
+
+                    if (ret == DEVICE_NOT_CONNECTED) {
+                        HandleDeviceDisconnected();
+                        break;
+                    }
+
+                    if (entry.delayMs > 0) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(entry.delayMs));
+                    }
                 }
             }
             break;
         }
 
-        case TaskType::ExecuteAllCommands: {
-            for (size_t i = 0; i < task.singleEntries.size() && m_isConnected; i++) {
-                ProcessPriorityTasks();
-                if (!m_isConnected) break;
+        default:
+            break;
+        }
+    }
 
-                const auto& entry = task.singleEntries[i];
+    void HardwareService::ExecutePeriodicTask() {
+        if (!m_isConnected || !m_periodicRunning) return;
+
+        auto startTime = std::chrono::steady_clock::now();
+
+        if (m_useBatchMode) {
+            std::vector<std::vector<uint8_t>> batchResults(m_periodicEntries.size());
+            std::vector<int> batchRet(m_periodicEntries.size(), -1);
+            bool flushSuccess = false;
+            std::string batchError;
+
+            {
+                std::lock_guard<std::mutex> lock(m_deviceMutex);
+                m_pmbus.FlushOn();
+                for (size_t i = 0; i < m_periodicEntries.size() && m_periodicRunning && m_isConnected; i++) {
+                    const auto& entry = m_periodicEntries[i];
+                    if (!entry.enabled) continue;
+
+                    uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : m_periodicSlaveAddr;
+                    switch (entry.type) {
+                    case CommandType::Read:
+                        batchRet[i] = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, batchResults[i]);
+                        break;
+                    case CommandType::Write:
+                        batchRet[i] = m_pmbus.Write(slaveAddr, entry.regAddress, entry.data);
+                        break;
+                    case CommandType::SendCommand:
+                        batchRet[i] = m_pmbus.SendByte(slaveAddr, entry.regAddress);
+                        break;
+                    }
+
+                    if (entry.delayMs > 0) {
+                        m_pmbus.Flush();
+                        std::this_thread::sleep_for(std::chrono::milliseconds(entry.delayMs));
+                    }
+                }
+                flushSuccess = m_pmbus.Flush();
+                if (!flushSuccess) batchError = m_pmbus.GetLastError();
+                m_pmbus.FlushOff();
+            }
+
+            for (size_t i = 0; i < m_periodicEntries.size() && m_periodicRunning && m_isConnected; i++) {
+                const auto& entry = m_periodicEntries[i];
                 if (!entry.enabled) continue;
 
-                uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : task.slaveAddr;
+                ResponsePacket packet;
+                packet.controlId = 3;
+                packet.commandId = static_cast<uint32_t>(i);
+                packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+
+                if (entry.type == CommandType::Read) {
+                    if (batchResults[i].size() == entry.length) {
+                        packet.success = true;
+                        packet.rawData = batchResults[i];
+                    }
+                    else {
+                        packet.success = false;
+                        packet.errorMsg = batchError.empty() ? "Batch NACK" : batchError;
+                    }
+                }
+                else {
+                    packet.success = flushSuccess;
+                    if (!flushSuccess) packet.errorMsg = batchError;
+                }
+
+                if (m_dataCallback) {
+                    std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                    m_callbackQueue.push([this, packet]() { m_dataCallback(packet); });
+                }
+            }
+        }
+        else {
+            for (size_t i = 0; i < m_periodicEntries.size() && m_periodicRunning && m_isConnected; i++) {
+                ProcessPriorityTasks();
+                if (!m_isConnected || !m_periodicRunning) break;
+
+                const auto& entry = m_periodicEntries[i];
+                if (!entry.enabled) continue;
+
+                uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : m_periodicSlaveAddr;
 
                 ResponsePacket packet;
-                packet.controlId = 2;
+                packet.controlId = 3;
                 packet.commandId = static_cast<uint32_t>(i);
                 packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now().time_since_epoch()).count();
@@ -537,6 +796,7 @@ namespace I2CDebugger {
 
                 {
                     std::lock_guard<std::mutex> lock(m_deviceMutex);
+
                     switch (entry.type) {
                     case CommandType::Read: {
                         std::vector<uint8_t> result;
@@ -546,7 +806,8 @@ namespace I2CDebugger {
                         }
                         break;
                     }
-                    case CommandType::Write:ret = m_pmbus.Write(slaveAddr, entry.regAddress, entry.data);
+                    case CommandType::Write:
+                        ret = m_pmbus.Write(slaveAddr, entry.regAddress, entry.data);
                         break;
                     case CommandType::SendCommand:
                         ret = m_pmbus.SendByte(slaveAddr, entry.regAddress);
@@ -570,85 +831,12 @@ namespace I2CDebugger {
 
                 if (ret == DEVICE_NOT_CONNECTED) {
                     HandleDeviceDisconnected();
-                    break;
+                    return;
                 }
 
                 if (entry.delayMs > 0) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(entry.delayMs));
                 }
-            }
-            break;
-        }
-
-        default:
-            break;
-        }
-    }
-
-    void HardwareService::ExecutePeriodicTask() {
-        if (!m_isConnected || !m_periodicRunning) return;
-
-        auto startTime = std::chrono::steady_clock::now();
-
-        for (size_t i = 0; i < m_periodicEntries.size() && m_periodicRunning && m_isConnected; i++) {
-            ProcessPriorityTasks();
-            if (!m_isConnected || !m_periodicRunning) break;
-
-            const auto& entry = m_periodicEntries[i];
-            if (!entry.enabled) continue;
-
-            uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : m_periodicSlaveAddr;
-
-            ResponsePacket packet;
-            packet.controlId = 3;
-            packet.commandId = static_cast<uint32_t>(i);
-            packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count();
-
-            int ret = 0;
-
-            {
-                std::lock_guard<std::mutex> lock(m_deviceMutex);
-
-                switch (entry.type) {
-                case CommandType::Read: {
-                    std::vector<uint8_t> result;
-                    ret = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, result);
-                    if (ret >= 0) {
-                        packet.rawData = result;
-                    }
-                    break;
-                }
-                case CommandType::Write:
-                    ret = m_pmbus.Write(slaveAddr, entry.regAddress, entry.data);
-                    break;
-                case CommandType::SendCommand:
-                    ret = m_pmbus.SendByte(slaveAddr, entry.regAddress);
-                    break;
-                }
-
-                if (ret < 0) {
-                    packet.errorMsg = m_pmbus.GetLastError();
-                }
-            }
-
-            packet.success = (ret >= 0);
-            packet.errorType = GetErrorType(ret);
-
-            if (m_dataCallback) {
-                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
-                m_callbackQueue.push([this, packet]() {
-                    m_dataCallback(packet);
-                    });
-            }
-
-            if (ret == DEVICE_NOT_CONNECTED) {
-                HandleDeviceDisconnected();
-                return;
-            }
-
-            if (entry.delayMs > 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(entry.delayMs));
             }
         }
 
@@ -660,4 +848,9 @@ namespace I2CDebugger {
             }
         }
     }
+
+    void HardwareService::EnableBatchMode(bool enable) {
+        m_useBatchMode = enable;
+    }
+
 }

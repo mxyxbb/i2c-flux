@@ -211,6 +211,7 @@ namespace I2CDebugger {
             return;
         }
         m_data.isReadingAllRegisters = true;
+        m_hardwareService->EnableBatchMode(true);  // 新增：打开批量封包模式
         m_hardwareService->ReadAllRegisters(group.slaveAddress, group.registerEntries);
     }
 
@@ -321,6 +322,7 @@ namespace I2CDebugger {
             return;
         }
         m_data.isExecuteAllSingleCommands = true;
+        m_hardwareService->EnableBatchMode(true);  // 新增：打开批量封包模式
         m_hardwareService->ExecuteAllSingleTrigger(group.slaveAddress, group.singleTriggerEntries);
     }
 
@@ -494,6 +496,7 @@ namespace I2CDebugger {
         // ===============================================
 
         m_data.isPeriodicRunning = true;
+        m_hardwareService->EnableBatchMode(true);  // 新增：打开批量封包模式
         m_hardwareService->StartPeriodicExecution(group.slaveAddress, group.periodicTriggerEntries, group.interval);
     }
 
@@ -506,6 +509,7 @@ namespace I2CDebugger {
 
         m_data.isPeriodicRunning = false;
         m_hardwareService->StopPeriodicExecution();
+        m_hardwareService->EnableBatchMode(false);
     }
 
     void I2CTableViewModel::SetAllPeriodicEntriesEnabled(bool enabled)

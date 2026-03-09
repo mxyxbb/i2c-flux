@@ -40,26 +40,31 @@ PMBus::~PMBus() {
     Close();
 }
 
-bool PMBus::executeSerialCommand(const std::vector<uint8_t>& tx_data, RPI2C::Packet& rx_packet, int retries) {
+bool PMBus::executeSerialCommand(const std::vector<uint8_t>& tx_data, RPI2C::Packet& rx_packet, int timeout_ms) {
     protocolParser_.reset();
     serialPort_.write(tx_data);
 
-    for (int i = 0; i < retries; ++i) {
-        std::vector<uint8_t> rx_buffer;
-        size_t bytes_read = serialPort_.read(rx_buffer, 1024);
+    auto start_time = std::chrono::steady_clock::now();
 
-        if (bytes_read > 0) {
+    // 在设定的超时时间内不断轮询
+    while (std::chrono::steady_clock::now() - start_time < std::chrono::milliseconds(timeout_ms)) {
+        size_t available = serialPort_.available(); // 查询当前系统缓冲区有多少数据
+        if (available > 0) {
+            std::vector<uint8_t> rx_buffer;
+            serialPort_.read(rx_buffer, available); // 请求确切的字节数，瞬间返回不阻塞
+
             for (uint8_t byte : rx_buffer) {
                 if (protocolParser_.parseByte(byte, rx_packet)) {
-                    return true;
+                    return true; // 成功解析到一帧数据，立即退出！无任何多余 Delay
                 }
             }
         }
         else {
-            protocolParser_.reset();
+            // 缓冲区无数据，休眠 1ms 避免 CPU 占用 100%
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
-    return false;
+    return false; // 真正超时才返回失败
 }
 
 bool PMBus::Open(char** deviceName) {
@@ -106,7 +111,7 @@ bool PMBus::Open(char** deviceName) {
 
         if (!serialPort_.isOpen()) continue;
 
-        if (executeSerialCommand(tx_data, rx_packet, 3)) {
+        if (executeSerialCommand(tx_data, rx_packet, 100)) {
             if (rx_packet.cmd == (RPI2C::CMD_GET_SIG | 0x80)) {
                 currentMode_ = DeviceMode::MODE_SERIAL;
                 if (deviceName) {
@@ -179,9 +184,8 @@ void PMBus::FlushOff() {
 }
 
 bool PMBus::Flush() {
-    // 只有在串口模式且开启了缓冲区时有效
     if (!flushMode_ || currentMode_ != DeviceMode::MODE_SERIAL) return false;
-    if (txBuffer_.empty()) return true; // 没有需要发送的数据
+    if (txBuffer_.empty()) return true;
 
     protocolParser_.reset();
     serialPort_.write(txBuffer_);
@@ -190,19 +194,23 @@ bool PMBus::Flush() {
     int expectedPackets = commandQueue_.size();
     bool allSuccess = true;
 
-    // 因为是批处理，等待的响应较多，重试次数给大一点
-    for (int i = 0; i < 20; ++i) {
-        std::vector<uint8_t> rx_buffer;
-        size_t bytes_read = serialPort_.read(rx_buffer, 2048); // 一次尽量多读
+    auto start_time = std::chrono::steady_clock::now();
 
-        if (bytes_read > 0) {
+    RPI2C::Packet rx_packet;
+
+    // 批处理允许稍长的总超时时间（例如给 500ms）
+    while (receivedPackets < expectedPackets &&
+        std::chrono::steady_clock::now() - start_time < std::chrono::milliseconds(500)) {
+
+        size_t available = serialPort_.available();
+        if (available > 0) {
+            std::vector<uint8_t> rx_buffer;
+            serialPort_.read(rx_buffer, available); // 瞬间返回
+
             for (uint8_t byte : rx_buffer) {
-                RPI2C::Packet rx_packet;
                 if (protocolParser_.parseByte(byte, rx_packet)) {
                     if (receivedPackets < expectedPackets) {
                         auto& cmd = commandQueue_[receivedPackets];
-
-                        // 处理读取指令的回填
                         if (cmd.type == PendingTask::READ && cmd.readResult != nullptr) {
                             if (rx_packet.len == cmd.readLen) {
                                 *(cmd.readResult) = rx_packet.payload;
@@ -213,7 +221,6 @@ bool PMBus::Flush() {
                             }
                         }
                         else {
-                            // 校验写入/单字节指令的 ACK (通常为 0x00)
                             if (rx_packet.payload.empty() || rx_packet.payload[0] != 0x00) {
                                 allSuccess = false;
                                 lastError_ = "Batch Write NACK.";
@@ -223,19 +230,20 @@ bool PMBus::Flush() {
                     }
                 }
             }
-            if (receivedPackets >= expectedPackets) break; // 全部解析完毕
+        }
+        else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 
     if (receivedPackets < expectedPackets) {
         allSuccess = false;
-        lastError_ = "Batch flush timeout. Expected " + std::to_string(expectedPackets) + " but got " + std::to_string(receivedPackets);
+        lastError_ = "Batch flush timeout. Expected " + std::to_string(expectedPackets) +
+            " but got " + std::to_string(receivedPackets);
     }
 
-    // 执行完毕清空缓冲，等待下一次载入
     txBuffer_.clear();
     commandQueue_.clear();
-
     return allSuccess;
 }
 

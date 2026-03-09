@@ -9,6 +9,7 @@
 #include <thread>
 #include <atomic>
 #include <condition_variable>
+#include <atomic>
 
 namespace I2CDebugger {
 
@@ -106,6 +107,8 @@ namespace I2CDebugger {
         bool IsConnected() const { return m_isConnected; }
         bool IsPeriodicRunning() const { return m_periodicRunning; }
 
+        void EnableBatchMode(bool enable);
+
     private:
         // 工作线程
         void WorkerThread();
@@ -145,6 +148,8 @@ namespace I2CDebugger {
         // 硬件设备
         PMBus m_pmbus;
         std::mutex m_deviceMutex;
+
+        std::atomic<bool> m_useBatchMode{ false };
     };
 
 } // namespace I2CDebugger
