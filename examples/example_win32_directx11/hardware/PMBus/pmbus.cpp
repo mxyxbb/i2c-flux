@@ -78,28 +78,45 @@ PMBus::~PMBus() {
 
 bool PMBus::executeSerialCommand(const std::vector<uint8_t>& tx_data, RPI2C::Packet& rx_packet, int timeout_ms) {
     protocolParser_.reset();
-    serialPort_.write(tx_data);
+
+    // --- 新增：捕获发送时的异常 ---
+    try {
+        serialPort_.write(tx_data);
+    }
+    catch (const std::exception& e) {
+        lastError_ = std::string("Serial write exception: ") + e.what();
+        return false;
+    }
 
     auto start_time = std::chrono::steady_clock::now();
 
     // 在设定的超时时间内不断轮询
     while (std::chrono::steady_clock::now() - start_time < std::chrono::milliseconds(timeout_ms)) {
-        size_t available = serialPort_.available(); // 查询当前系统缓冲区有多少数据
-        if (available > 0) {
-            std::vector<uint8_t> rx_buffer;
-            serialPort_.read(rx_buffer, available); // 请求确切的字节数，瞬间返回不阻塞
+        // --- 新增：捕获读取时的异常 ---
+        try {
+            size_t available = serialPort_.available(); // 查询当前系统缓冲区有多少数据
+            if (available > 0) {
+                std::vector<uint8_t> rx_buffer;
+                serialPort_.read(rx_buffer, available); // 请求确切的字节数，瞬间返回不阻塞
 
-            for (uint8_t byte : rx_buffer) {
-                if (protocolParser_.parseByte(byte, rx_packet)) {
-                    return true; // 成功解析到一帧数据，立即退出！无任何多余 Delay
+                for (uint8_t byte : rx_buffer) {
+                    if (protocolParser_.parseByte(byte, rx_packet)) {
+                        return true; // 成功解析到一帧数据，立即退出！
+                    }
                 }
             }
+            else {
+                // 缓冲区无数据，休眠 1ms 避免 CPU 占用 100%
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
         }
-        else {
-            // 缓冲区无数据，休眠 1ms 避免 CPU 占用 100%
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        catch (const std::exception& e) {
+            lastError_ = std::string("Serial read exception: ") + e.what();
+            return false; // 发生底层断开等异常，立刻返回失败
         }
     }
+
+    lastError_ = "Serial command timeout.";
     return false; // 真正超时才返回失败
 }
 
@@ -229,7 +246,17 @@ bool PMBus::Flush() {
     if (txBuffer_.empty()) return true;
 
     protocolParser_.reset();
-    serialPort_.write(txBuffer_);
+
+    // --- 新增：捕获批量发送时的异常 ---
+    try {
+        serialPort_.write(txBuffer_);
+    }
+    catch (const std::exception& e) {
+        lastError_ = std::string("Serial flush write exception: ") + e.what();
+        txBuffer_.clear();
+        commandQueue_.clear();
+        return false; // 硬件异常，直接终止本次 Flush
+    }
 
     int receivedPackets = 0;
     int expectedPackets = commandQueue_.size();
@@ -241,66 +268,74 @@ bool PMBus::Flush() {
     while (receivedPackets < expectedPackets &&
         std::chrono::steady_clock::now() - start_time < std::chrono::milliseconds(3000)) {
 
-        size_t available = serialPort_.available();
-        if (available > 0) {
-            std::vector<uint8_t> rx_buffer;
-            serialPort_.read(rx_buffer, available);
+        // --- 新增：捕获批量读取时的异常 ---
+        try {
+            size_t available = serialPort_.available();
+            if (available > 0) {
+                std::vector<uint8_t> rx_buffer;
+                serialPort_.read(rx_buffer, available);
 
-            for (uint8_t byte : rx_buffer) {
-                if (protocolParser_.parseByte(byte, rx_packet)) {
-                    if (receivedPackets < expectedPackets) {
-                        auto& cmd = commandQueue_[receivedPackets];
-                        if (cmd.type == PendingTask::READ && cmd.readResult != nullptr) {
-                            if (rx_packet.len == cmd.readLen) {
-                                // --- 【修改】批量模式下的动态 CRC 校验 ---
-                                if (cmd.useCrc) {
-                                    std::vector<uint8_t> header = {
-                                        static_cast<uint8_t>(cmd.slaveAddress << 1),       // Write Addr
-                                        cmd.regAddr,                                       // Register
-                                        static_cast<uint8_t>((cmd.slaveAddress << 1) | 1)  // Read Addr
-                                    };
+                for (uint8_t byte : rx_buffer) {
+                    if (protocolParser_.parseByte(byte, rx_packet)) {
+                        if (receivedPackets < expectedPackets) {
+                            auto& cmd = commandQueue_[receivedPackets];
+                            if (cmd.type == PendingTask::READ && cmd.readResult != nullptr) {
+                                if (rx_packet.len == cmd.readLen) {
+                                    // --- 批量模式下的动态 CRC 校验 ---
+                                    if (cmd.useCrc) {
+                                        std::vector<uint8_t> header = {
+                                            static_cast<uint8_t>(cmd.slaveAddress << 1),       // Write Addr
+                                            cmd.regAddr,                                       // Register
+                                            static_cast<uint8_t>((cmd.slaveAddress << 1) | 1)  // Read Addr
+                                        };
 
-                                    bool crcOk = VerifyPacketCrc(rx_packet.payload, header, cmd.crcType);
-                                    int crcLen = GetCrcByteLength(cmd.crcType);
+                                        bool crcOk = VerifyPacketCrc(rx_packet.payload, header, cmd.crcType);
+                                        int crcLen = GetCrcByteLength(cmd.crcType);
 
-                                    // 无论CRC对错，先把尾部的 CRC 字节剥离出去并赋值给外部
-                                    if (rx_packet.payload.size() >= static_cast<size_t>(crcLen)) {
-                                        rx_packet.payload.erase(rx_packet.payload.end() - crcLen, rx_packet.payload.end());
+                                        // 无论CRC对错，先把尾部的 CRC 字节剥离出去并赋值给外部
+                                        if (rx_packet.payload.size() >= static_cast<size_t>(crcLen)) {
+                                            rx_packet.payload.erase(rx_packet.payload.end() - crcLen, rx_packet.payload.end());
+                                        }
+                                        *(cmd.readResult) = rx_packet.payload;
+
+                                        // 然后再报错误
+                                        if (!crcOk) {
+                                            allSuccess = false;
+                                            lastError_ = "Batch Read CRC Error.";
+                                        }
                                     }
-                                    *(cmd.readResult) = rx_packet.payload;
-
-                                    // 然后再报错误
-                                    if (!crcOk) {
-                                        allSuccess = false;
-                                        lastError_ = "Batch Read CRC Error.";
+                                    else {
+                                        *(cmd.readResult) = rx_packet.payload;
                                     }
                                 }
                                 else {
-                                    *(cmd.readResult) = rx_packet.payload;
+                                    allSuccess = false;
+                                    lastError_ = "Batch Read length mismatch.";
                                 }
                             }
                             else {
-                                allSuccess = false;
-                                lastError_ = "Batch Read length mismatch.";
+                                if (rx_packet.payload.empty() || rx_packet.payload[0] != 0x00) {
+                                    allSuccess = false;
+                                    lastError_ = "Batch Write NACK.";
+                                }
                             }
+                            receivedPackets++;
                         }
-                        else {
-                            if (rx_packet.payload.empty() || rx_packet.payload[0] != 0x00) {
-                                allSuccess = false;
-                                lastError_ = "Batch Write NACK.";
-                            }
-                        }
-                        receivedPackets++;
                     }
                 }
             }
+            else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
         }
-        else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        catch (const std::exception& e) {
+            lastError_ = std::string("Serial flush read exception: ") + e.what();
+            allSuccess = false;
+            break; // 发生底层断开等异常，跳出等待循环
         }
     }
 
-    if (receivedPackets < expectedPackets) {
+    if (receivedPackets < expectedPackets && allSuccess) {
         allSuccess = false;
         lastError_ = "Batch flush timeout.";
     }
