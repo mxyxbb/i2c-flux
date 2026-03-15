@@ -136,7 +136,8 @@ https://github.com/user-attachments/assets/5aca0e86-a72c-455c-96b5-92937a1bf188
 
 ## 5. 补充-解析负数
 由于exprtk的脚本支持，解析式可以输入以下表达式，以解析负数(如 0xff 0xff)  
-        if(w0>800*32) (w0-65536)/32;else w0/32;
+
+            if(w0>800*32) (w0-65536)/32;else w0/32;
 
 ## 6. 扫描不到地址时的排查杂项
 - 重新插拔CP2112接口模块
