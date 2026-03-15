@@ -31,6 +31,7 @@ namespace I2CDebugger {
     enum class ErrorType {
         None = 0,
         SlaveNotResponse,    // 从机无响应
+        CRCNotCorrect,    // CRC错误
         DeviceDisconnected,  // 设备断开
         UnknownError
     };

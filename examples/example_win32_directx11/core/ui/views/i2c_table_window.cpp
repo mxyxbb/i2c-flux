@@ -17,6 +17,8 @@ namespace I2CDebugger {
     I2CTableWindow::I2CTableWindow(std::shared_ptr<I2CTableViewModel> viewModel)
         : m_viewModel(viewModel)
     {
+        // 注入依赖
+        m_crcViewModel = std::make_shared<CrcViewModel>(m_viewModel);
         auto& group = m_viewModel->GetCurrentGroup();
         std::snprintf(m_slaveAddrInput, sizeof(m_slaveAddrInput), "0x%02X", group.slaveAddress);
         std::snprintf(m_intervalInput, sizeof(m_intervalInput), "%u", group.interval);
@@ -53,6 +55,9 @@ namespace I2CDebugger {
         }
         else if (errorType == ErrorType::DeviceDisconnected) {
             return ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+        }
+        else if (errorType == ErrorType::CRCNotCorrect) {
+            return ImVec4(1.0f, 0.5f, 0.0f, 1.0f);
         }
         return ImVec4(1.0f, 0.5f, 0.0f, 1.0f);
     }
@@ -172,6 +177,8 @@ namespace I2CDebugger {
 
         RenderExportPopup();
         RenderImportPopup();
+
+        m_crcView.Render(m_crcViewModel); // 传入 ViewModel 渲染视图
 
         // 渲染快捷添加组件
         m_quickAddPopup.Render(m_viewModel);
@@ -308,10 +315,17 @@ namespace I2CDebugger {
             ImGui::SetTooltip("16进制数据，带不带0x均可");
         }
 
+        ImGui::SameLine();
+        ImGui::Checkbox("使能CRC校验", &group.crcEnabled);
+        ImGui::SameLine();
+        if (ImGui::Button("设置##CRC")) {
+            m_crcView.Open(m_crcViewModel);
+        }
+
         // 周期触发时显示间隔设置
         if (data.currentTab == TabType::PeriodicTrigger) {
             ImGui::SameLine();
-            ImGui::Text("间隔(ms):");
+            ImGui::Text(" 触发周期(ms):");
             ImGui::SameLine();
             ImGui::SetNextItemWidth(80);
             // 【修改】加入 CharsDecimal 限制和安全防护

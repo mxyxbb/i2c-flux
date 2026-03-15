@@ -24,6 +24,7 @@ constexpr uint32_t DEFAULT_RESPONSE_TIMEOUT = 100;
 
 constexpr INT SLAVE_NOT_RESPONSE = -1;
 constexpr INT DEVICE_NOT_CONNECTED = -2;
+constexpr INT CRC_ERROR_CODE = -3;
 
 class PMBus {
 public:
@@ -45,6 +46,13 @@ public:
     void FlushOn();
     void FlushOff();
     bool Flush();
+
+    void SetCrcConfig(bool enabled, int type) {
+        crcEnabled_ = enabled;
+        crcType_ = type;
+    }
+    bool IsCrcEnabled() const { return crcEnabled_; }
+    int GetCrcType() const { return crcType_; }
 
 private:
     enum class DeviceMode {
@@ -71,9 +79,17 @@ private:
         enum Type { WRITE, READ } type;
         std::vector<uint8_t>* readResult; // 保存用户引用的指针，用于填入读取数据
         uint16_t readLen;                 // 期望的读取长度
+        uint8_t slaveAddress; // 新增：用于记录从机地址
+        uint8_t regAddr;      // 新增：用于记录寄存器地址
+        bool useCrc;          // 新增：记录入队时是否开启了 CRC
+        int crcType;          //【新增】记录入队时的 CRC 算法类型 ---
     };
 
     bool flushMode_{ false };
     std::vector<uint8_t> txBuffer_;           // 统一发送的指令流
     std::vector<PendingTask> commandQueue_;   // 记录任务顺序以便解包
+
+    bool crcEnabled_ = false;
+    int crcType_ = 0;
+
 };

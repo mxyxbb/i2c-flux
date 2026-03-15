@@ -3,6 +3,8 @@
 #include <memory>
 #include <chrono>  // 添加这个头文件
 #include "quick_add_popup.h"
+#include "crc_view.h"
+#include "../../viewmodels/crc_viewmodel.h"
 
 namespace I2CDebugger {
 
@@ -106,6 +108,9 @@ namespace I2CDebugger {
 
         // 【新增】：处理全局快捷键
         void HandleKeyboardShortcuts();
+
+        CrcView m_crcView;
+        std::shared_ptr<CrcViewModel> m_crcViewModel;
     };
 
 }

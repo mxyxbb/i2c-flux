@@ -96,6 +96,9 @@ namespace I2CDebugger {
         // 数据日志配置
         DataLogConfig logConfig;
 
+        bool crcEnabled = false;
+        int crcType = 0; // 0: CRC-8, 1: CRC-16(Modbus), 2: CRC-32
+
         // --- 新增的成员函数 ---
         uint32_t GetLastEnabledSingleTriggerID() const {
             for (int i = static_cast<int>(singleTriggerEntries.size()) - 1; i >= 0; --i) {

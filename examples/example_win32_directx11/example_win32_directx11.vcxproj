@@ -168,6 +168,7 @@
     <ClInclude Include="..\..\backends\imgui_impl_win32.h" />
     <ClInclude Include="core\app.h" />
     <ClInclude Include="core\models\channel_model.h" />
+    <ClInclude Include="core\models\crc_calculator.h" />
     <ClInclude Include="core\models\i2c_command.h" />
     <ClInclude Include="core\models\i2c_data.h" />
     <ClInclude Include="core\models\i2c_simple_app.h" />
@@ -177,12 +178,14 @@
     <ClInclude Include="core\services\expression_parser.h" />
     <ClInclude Include="core\services\hardware_service.h" />
     <ClInclude Include="core\UI.h" />
+    <ClInclude Include="core\ui\views\crc_view.h" />
     <ClInclude Include="core\ui\views\i2c_simple_window.h" />
     <ClInclude Include="core\ui\views\i2c_table_window.h" />
     <ClInclude Include="core\ui\views\main_window.h" />
     <ClInclude Include="core\ui\views\plot_view.h" />
     <ClInclude Include="core\ui\views\quick_add_popup.h" />
     <ClInclude Include="core\ui\widgets\activity_indicator.h" />
+    <ClInclude Include="core\viewmodels\crc_viewmodel.h" />
     <ClInclude Include="core\viewmodels\i2c_simple_viewmodel.h" />
     <ClInclude Include="core\viewmodels\i2c_table_viewmodel.h" />
     <ClInclude Include="core\viewmodels\plot_viewmodel.h" />
@@ -208,6 +211,7 @@
     <ClCompile Include="core\implot\implot.cpp" />
     <ClCompile Include="core\implot\implot_demo.cpp" />
     <ClCompile Include="core\implot\implot_items.cpp" />
+    <ClCompile Include="core\models\crc_calculator.cpp" />
     <ClCompile Include="core\models\i2c_simple_app.cpp" />
     <ClCompile Include="core\models\i2c_table_app.cpp" />
     <ClCompile Include="core\serial\src\impl\list_ports\list_ports_win.cc" />
@@ -218,11 +222,13 @@
     <ClCompile Include="core\services\expression_parser.cpp" />
     <ClCompile Include="core\services\hardware_service.cpp" />
     <ClCompile Include="core\UI.cpp" />
+    <ClCompile Include="core\ui\views\crc_view.cpp" />
     <ClCompile Include="core\ui\views\i2c_simple_window.cpp" />
     <ClCompile Include="core\ui\views\i2c_table_window.cpp" />
     <ClCompile Include="core\ui\views\main_window.cpp" />
     <ClCompile Include="core\ui\views\plot_view.cpp" />
     <ClCompile Include="core\ui\views\quick_add_popup.cpp" />
+    <ClCompile Include="core\viewmodels\crc_viewmodel.cpp" />
     <ClCompile Include="core\viewmodels\i2c_simple_viewmodel.cpp" />
     <ClCompile Include="core\viewmodels\i2c_table_viewmodel.cpp" />
     <ClCompile Include="core\viewmodels\quick_add_processor.cpp" />

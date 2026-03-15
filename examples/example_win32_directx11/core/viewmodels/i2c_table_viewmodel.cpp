@@ -211,8 +211,9 @@ namespace I2CDebugger {
             return;
         }
         m_data.isReadingAllRegisters = true;
-        m_hardwareService->EnableBatchMode(true);  // 新增：打开批量封包模式
-        m_hardwareService->ReadAllRegisters(group.slaveAddress, group.registerEntries);
+        m_hardwareService->EnableBatchMode(true);
+        // 【修改】传入当前组的 CRC 配置
+        m_hardwareService->ReadAllRegisters(group.slaveAddress, group.registerEntries, group.crcEnabled, group.crcType);
     }
 
     // 单次触发操作
@@ -230,7 +231,6 @@ namespace I2CDebugger {
 
         if (data.selectedRowSingle >= 0 && data.selectedRowSingle < static_cast<int>(entries.size())) {
 
-            // 【新增】：在真正 erase 之前，保存到撤销栈
             UndoAction action;
             action.type = UndoItemType::SingleTrigger;
             action.groupIndex = data.currentGroupIndex;
@@ -239,11 +239,9 @@ namespace I2CDebugger {
 
             m_undoStack.push_back(action);
             if (m_undoStack.size() > MAX_UNDO_STEPS) {
-                m_undoStack.erase(m_undoStack.begin()); // 保持栈大小
+                m_undoStack.erase(m_undoStack.begin());
             }
-            // ==========================================
 
-            // 你原有的删除逻辑
             entries.erase(entries.begin() + data.selectedRowSingle);
 
             if (data.selectedRowSingle >= static_cast<int>(entries.size())) {
@@ -296,15 +294,16 @@ namespace I2CDebugger {
         const auto& entry = group.singleTriggerEntries[index];
         uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : group.slaveAddress;
 
+        // 【修改】追加 CRC 参数
         switch (entry.type) {
         case CommandType::Read:
-            m_hardwareService->InsertSingleRead(slaveAddr, entry.regAddress, entry.length, 2, index);
+            m_hardwareService->InsertSingleRead(slaveAddr, entry.regAddress, entry.length, 2, index, group.crcEnabled, group.crcType);
             break;
         case CommandType::Write:
-            m_hardwareService->InsertSingleWrite(slaveAddr, entry.regAddress, entry.data, 2, index);
+            m_hardwareService->InsertSingleWrite(slaveAddr, entry.regAddress, entry.data, 2, index, group.crcEnabled, group.crcType);
             break;
         case CommandType::SendCommand:
-            m_hardwareService->InsertSingleCommand(slaveAddr, entry.regAddress, 2, index);
+            m_hardwareService->InsertSingleCommand(slaveAddr, entry.regAddress, 2, index, group.crcEnabled, group.crcType);
             break;
         }
     }
@@ -318,12 +317,13 @@ namespace I2CDebugger {
         if (group.singleTriggerEntries.empty()) {
             return;
         }
-        if(!AreAnySingleEntriesEnabled()) {
+        if (!AreAnySingleEntriesEnabled()) {
             return;
         }
         m_data.isExecuteAllSingleCommands = true;
-        m_hardwareService->EnableBatchMode(true);  // 新增：打开批量封包模式
-        m_hardwareService->ExecuteAllSingleTrigger(group.slaveAddress, group.singleTriggerEntries);
+        m_hardwareService->EnableBatchMode(true);
+        // 【修改】追加 CRC 参数
+        m_hardwareService->ExecuteAllSingleTrigger(group.slaveAddress, group.singleTriggerEntries, group.crcEnabled, group.crcType);
     }
 
     void I2CTableViewModel::SetAllSingleEntriesEnabled(bool enabled)
@@ -368,7 +368,6 @@ namespace I2CDebugger {
 
         if (data.selectedRowPeriodic >= 0 && data.selectedRowPeriodic < static_cast<int>(entries.size())) {
 
-            // 【新增】：在真正 erase 之前，保存到撤销栈
             UndoAction action;
             action.type = UndoItemType::PeriodicTrigger;
             action.groupIndex = data.currentGroupIndex;
@@ -377,13 +376,11 @@ namespace I2CDebugger {
 
             m_undoStack.push_back(action);
             if (m_undoStack.size() > MAX_UNDO_STEPS) {
-                m_undoStack.erase(m_undoStack.begin()); // 保持栈大小不超过限制
+                m_undoStack.erase(m_undoStack.begin());
             }
 
-            // 原有的删除逻辑
             entries.erase(entries.begin() + data.selectedRowPeriodic);
 
-            // 修正越界的选中行索引
             if (data.selectedRowPeriodic >= static_cast<int>(entries.size())) {
                 data.selectedRowPeriodic = static_cast<int>(entries.size()) - 1;
             }
@@ -435,15 +432,16 @@ namespace I2CDebugger {
         const auto& entry = group.periodicTriggerEntries[index];
         uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : group.slaveAddress;
 
+        // 【修改】追加 CRC 参数
         switch (entry.type) {
         case CommandType::Read:
-            m_hardwareService->InsertSingleRead(slaveAddr, entry.regAddress, entry.length, 3, index);
+            m_hardwareService->InsertSingleRead(slaveAddr, entry.regAddress, entry.length, 3, index, group.crcEnabled, group.crcType);
             break;
         case CommandType::Write:
-            m_hardwareService->InsertSingleWrite(slaveAddr, entry.regAddress, entry.data, 3, index);
+            m_hardwareService->InsertSingleWrite(slaveAddr, entry.regAddress, entry.data, 3, index, group.crcEnabled, group.crcType);
             break;
         case CommandType::SendCommand:
-            m_hardwareService->InsertSingleCommand(slaveAddr, entry.regAddress, 3, index);
+            m_hardwareService->InsertSingleCommand(slaveAddr, entry.regAddress, 3, index, group.crcEnabled, group.crcType);
             break;
         }
     }
@@ -457,13 +455,10 @@ namespace I2CDebugger {
         if (m_plotViewModel) {
             m_plotViewModel->ClearChannels(); // 每次开始前清空旧通道
 
-            // 【新增】每次开始周期触发时，将波形图时间基准归零
             m_plotViewModel->ResetTime();
 
-            // 【新增】告诉波形图系统已启动，可以开始滚动了
             m_plotViewModel->SetSystemRunning(true);
 
-            // 定义一个预设的通道颜色池
             std::vector<ImVec4> presetColors = {
                 ImVec4(1.0f, 0.2f, 0.2f, 1.0f), // 红
                 ImVec4(0.2f, 0.8f, 0.2f, 1.0f), // 绿
@@ -476,11 +471,9 @@ namespace I2CDebugger {
             for (size_t i = 0; i < group.periodicTriggerEntries.size(); ++i) {
                 const auto& entry = group.periodicTriggerEntries[i];
 
-                // 只有当：条目已启用 + 勾选了绘图曲线 + 是读取命令 + 启用了公式解析 时，才创建通道
                 if (entry.enabled && entry.plotEnabled &&
                     entry.type == CommandType::Read && entry.parseConfig.enabled)
                 {
-                    // 通道名称优先使用别名，如果没有别名则使用 "CH1", "CH2"...
                     std::string chName = entry.parseConfig.alias.empty() ?
                         ("CH" + std::to_string(i + 1)) :
                         entry.parseConfig.alias;
@@ -488,7 +481,6 @@ namespace I2CDebugger {
                     ImVec4 color = presetColors[colorIndex % presetColors.size()];
                     colorIndex++;
 
-                    // 传入 i 作为通道绑定的 id
                     m_plotViewModel->AddChannel(i, chName, color);
                 }
             }
@@ -496,13 +488,13 @@ namespace I2CDebugger {
         // ===============================================
 
         m_data.isPeriodicRunning = true;
-        m_hardwareService->EnableBatchMode(true);  // 新增：打开批量封包模式
-        m_hardwareService->StartPeriodicExecution(group.slaveAddress, group.periodicTriggerEntries, group.interval);
+        m_hardwareService->EnableBatchMode(true);
+        // 【修改】追加 CRC 参数
+        m_hardwareService->StartPeriodicExecution(group.slaveAddress, group.periodicTriggerEntries, group.interval, group.crcEnabled, group.crcType);
     }
 
     void I2CTableViewModel::StopPeriodicExecution()
     {
-        // 【新增】告诉波形图系统已停止，冻结画面
         if (m_plotViewModel) {
             m_plotViewModel->SetSystemRunning(false);
         }
@@ -730,7 +722,7 @@ namespace I2CDebugger {
         if (!result.success) {
             config.lastError = result.errorMsg;
         }
-        else if(!m_plotViewModel->IsUserPaused()) {
+        else if (!m_plotViewModel->IsUserPaused()) {
             float currentTime = m_plotViewModel->GetRelativeTime();
             m_plotViewModel->AddDataPoint(entryIndex, currentTime, static_cast<float>(config.parsedValue));
         }
@@ -874,8 +866,8 @@ namespace I2CDebugger {
                 auto& entry = group.registerEntries[packet.commandId];
                 entry.lastSuccess = packet.success;
                 entry.lastErrorType = packet.errorType;
+                entry.data = packet.rawData;
                 if (packet.success) {
-                    entry.data = packet.rawData;
                     entry.lastError.clear();
 
                     // 新增：读取成功后自动更新解析值
@@ -897,8 +889,8 @@ namespace I2CDebugger {
                 auto& entry = group.singleTriggerEntries[packet.commandId];
                 entry.lastSuccess = packet.success;
                 entry.lastErrorType = packet.errorType;
+                entry.data = packet.rawData;
                 if (packet.success && !packet.rawData.empty()) {
-                    entry.data = packet.rawData;
                     entry.lastError.clear();
 
                     // 新增：读取成功后自动更新解析值
@@ -921,8 +913,8 @@ namespace I2CDebugger {
                 auto& entry = group.periodicTriggerEntries[packet.commandId];
                 entry.lastSuccess = packet.success;
                 entry.lastErrorType = packet.errorType;
+                entry.data = packet.rawData;
                 if (packet.success && !packet.rawData.empty()) {
-                    entry.data = packet.rawData;
                     entry.lastError.clear();
 
                     // 读取成功后自动更新解析值
@@ -994,5 +986,3 @@ namespace I2CDebugger {
         }
     }
 }
-
-

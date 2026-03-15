@@ -9,7 +9,6 @@
 #include <thread>
 #include <atomic>
 #include <condition_variable>
-#include <atomic>
 
 namespace I2CDebugger {
 
@@ -43,6 +42,10 @@ namespace I2CDebugger {
         std::vector<SingleTriggerEntry> singleEntries;
         std::vector<PeriodicTriggerEntry> periodicEntries;
         uint32_t intervalMs = 100;
+
+        // 任务专属的 CRC 配置
+        bool crcEnabled = false;
+        int crcType = 0;
     };
 
     // ========== 回调类型定义 ==========
@@ -66,33 +69,39 @@ namespace I2CDebugger {
         void Disconnect();
         void ScanSlaves();
 
+        // --- 【修改点 1】：给所有单次和批量操作加上默认的 CRC 参数 ---
+
         // 单次操作
         void ReadRegister(uint8_t slaveAddr, uint8_t regAddr, uint8_t length,
-            uint32_t controlId, uint32_t commandId);
+            uint32_t controlId, uint32_t commandId, bool crcEnabled = false, int crcType = 0);
         void WriteRegister(uint8_t slaveAddr, uint8_t regAddr,
             const std::vector<uint8_t>& data,
-            uint32_t controlId, uint32_t commandId);
+            uint32_t controlId, uint32_t commandId, bool crcEnabled = false, int crcType = 0);
         void SendCommand(uint8_t slaveAddr, uint8_t regAddr,
-            uint32_t controlId, uint32_t commandId);
+            uint32_t controlId, uint32_t commandId, bool crcEnabled = false, int crcType = 0);
 
         // 批量操作
-        void ReadAllRegisters(uint8_t defaultSlaveAddr, const std::vector<RegisterEntry>& entries);
-        void ExecuteAllSingleTrigger(uint8_t defaultSlaveAddr, const std::vector<SingleTriggerEntry>& entries);
+        void ReadAllRegisters(uint8_t defaultSlaveAddr, const std::vector<RegisterEntry>& entries,
+            bool crcEnabled = false, int crcType = 0);
+        void ExecuteAllSingleTrigger(uint8_t defaultSlaveAddr, const std::vector<SingleTriggerEntry>& entries,
+            bool crcEnabled = false, int crcType = 0);
 
         // 周期执行
         void StartPeriodicExecution(uint8_t defaultSlaveAddr,
             const std::vector<PeriodicTriggerEntry>& entries,
-            uint32_t intervalMs);
+            uint32_t intervalMs, bool crcEnabled = false, int crcType = 0);
         void StopPeriodicExecution();
 
         // 优先级插入（周期执行期间的单次操作）
         void InsertSingleRead(uint8_t slaveAddr, uint8_t regAddr, uint8_t length,
-            uint32_t controlId, uint32_t commandId);
+            uint32_t controlId, uint32_t commandId, bool crcEnabled = false, int crcType = 0);
         void InsertSingleWrite(uint8_t slaveAddr, uint8_t regAddr,
             const std::vector<uint8_t>& data,
-            uint32_t controlId, uint32_t commandId);
+            uint32_t controlId, uint32_t commandId, bool crcEnabled = false, int crcType = 0);
         void InsertSingleCommand(uint8_t slaveAddr, uint8_t regAddr,
-            uint32_t controlId, uint32_t commandId);
+            uint32_t controlId, uint32_t commandId, bool crcEnabled = false, int crcType = 0);
+
+        // --- 回调与状态保持不变 ---
 
         // 回调设置
         void SetConnectCallback(ConnectCallback callback) { m_connectCallback = callback; }
@@ -116,10 +125,9 @@ namespace I2CDebugger {
         void ExecutePeriodicTask();
         void ProcessPriorityTasks();
         void HandleDeviceDisconnected();
-        ErrorType GetErrorType(int returnValue);  // 修复：分开两行
+        ErrorType GetErrorType(int returnValue);
 
-        // 工作线程
-        std::thread m_workerThread;               // 修复：单独一行
+        std::thread m_workerThread;
         std::atomic<bool> m_running{ false };
         std::atomic<bool> m_isConnected{ false };
         std::atomic<bool> m_periodicRunning{ false };
@@ -144,6 +152,10 @@ namespace I2CDebugger {
         std::vector<PeriodicTriggerEntry> m_periodicEntries;
         uint8_t m_periodicSlaveAddr = 0;
         uint32_t m_periodicIntervalMs = 100;
+
+        // --- 【修改点 2】：增加周期任务的 CRC 配置缓存 ---
+        bool m_periodicCrcEnabled = false;
+        int  m_periodicCrcType = 0;
 
         // 硬件设备
         PMBus m_pmbus;

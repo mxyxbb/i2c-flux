@@ -7,6 +7,7 @@
 #include <cctype>    
 #include <thread>
 #include <chrono>
+#include "core/models/crc_calculator.h"
 
 namespace {
     int extractPortNumber(const std::string& portName) {
@@ -22,6 +23,41 @@ namespace {
             }
         }
         return num;
+    }
+
+    int GetCrcByteLength(int type) {
+        if (type == 1) return 2; // CRC-16 (Modbus)
+        if (type == 2) return 4; // CRC-32
+        return 1;                // CRC-8 (SMBus)
+    }
+
+    // 辅助函数：将多字节 CRC 采用小端序追加到数据流尾部
+    void AppendCrcToData(std::vector<uint8_t>& data, uint32_t crc, int type) {
+        int len = GetCrcByteLength(type);
+        for (int i = 0; i < len; ++i) {
+            data.push_back(static_cast<uint8_t>((crc >> (i * 8)) & 0xFF));
+        }
+    }
+
+    // 辅助函数：校验接收到的数据包 CRC 是否正确
+    bool VerifyPacketCrc(const std::vector<uint8_t>& packet, const std::vector<uint8_t>& header, int type) {
+        int crcLen = GetCrcByteLength(type);
+        if (packet.size() < crcLen) return false;
+
+        // 提取前置数据
+        std::vector<uint8_t> crc_payload = header;
+        crc_payload.insert(crc_payload.end(), packet.begin(), packet.end() - crcLen);
+
+        // 调用静态算法计算预期值
+        uint32_t calc_crc = I2CDebugger::CrcCalculator::Calculate(type, crc_payload);
+
+        // 提取接收到的 CRC（小端序恢复）
+        uint32_t rx_crc = 0;
+        for (int i = 0; i < crcLen; ++i) {
+            rx_crc |= (static_cast<uint32_t>(packet[packet.size() - crcLen + i]) << (i * 8));
+        }
+
+        return calc_crc == rx_crc;
     }
 
     bool containsIgnoreCase(const std::string& str, const std::string& sub) {
@@ -200,17 +236,15 @@ bool PMBus::Flush() {
     bool allSuccess = true;
 
     auto start_time = std::chrono::steady_clock::now();
-
     RPI2C::Packet rx_packet;
 
-    // 批处理允许稍长的总超时时间（例如给 500ms）
     while (receivedPackets < expectedPackets &&
-        std::chrono::steady_clock::now() - start_time < std::chrono::milliseconds(500)) {
+        std::chrono::steady_clock::now() - start_time < std::chrono::milliseconds(3000)) {
 
         size_t available = serialPort_.available();
         if (available > 0) {
             std::vector<uint8_t> rx_buffer;
-            serialPort_.read(rx_buffer, available); // 瞬间返回
+            serialPort_.read(rx_buffer, available);
 
             for (uint8_t byte : rx_buffer) {
                 if (protocolParser_.parseByte(byte, rx_packet)) {
@@ -218,7 +252,32 @@ bool PMBus::Flush() {
                         auto& cmd = commandQueue_[receivedPackets];
                         if (cmd.type == PendingTask::READ && cmd.readResult != nullptr) {
                             if (rx_packet.len == cmd.readLen) {
-                                *(cmd.readResult) = rx_packet.payload;
+                                // --- 【修改】批量模式下的动态 CRC 校验 ---
+                                if (cmd.useCrc) {
+                                    std::vector<uint8_t> header = {
+                                        static_cast<uint8_t>(cmd.slaveAddress << 1),       // Write Addr
+                                        cmd.regAddr,                                       // Register
+                                        static_cast<uint8_t>((cmd.slaveAddress << 1) | 1)  // Read Addr
+                                    };
+
+                                    bool crcOk = VerifyPacketCrc(rx_packet.payload, header, cmd.crcType);
+                                    int crcLen = GetCrcByteLength(cmd.crcType);
+
+                                    // 无论CRC对错，先把尾部的 CRC 字节剥离出去并赋值给外部
+                                    if (rx_packet.payload.size() >= static_cast<size_t>(crcLen)) {
+                                        rx_packet.payload.erase(rx_packet.payload.end() - crcLen, rx_packet.payload.end());
+                                    }
+                                    *(cmd.readResult) = rx_packet.payload;
+
+                                    // 然后再报错误
+                                    if (!crcOk) {
+                                        allSuccess = false;
+                                        lastError_ = "Batch Read CRC Error.";
+                                    }
+                                }
+                                else {
+                                    *(cmd.readResult) = rx_packet.payload;
+                                }
                             }
                             else {
                                 allSuccess = false;
@@ -243,8 +302,7 @@ bool PMBus::Flush() {
 
     if (receivedPackets < expectedPackets) {
         allSuccess = false;
-        lastError_ = "Batch flush timeout. Expected " + std::to_string(expectedPackets) +
-            " but got " + std::to_string(receivedPackets);
+        lastError_ = "Batch flush timeout.";
     }
 
     txBuffer_.clear();
@@ -252,17 +310,24 @@ bool PMBus::Flush() {
     return allSuccess;
 }
 
-// --- 重写通信接口 ---
-
 INT PMBus::Write(uint8_t slaveAddress, uint8_t regAddr, const std::vector<uint8_t>& data) {
     if (currentMode_ == DeviceMode::MODE_NONE) return DEVICE_NOT_CONNECTED;
     if (slaveAddress > 0x7F) { lastError_ = "Invalid slave address"; return DEVICE_NOT_CONNECTED; }
 
+    std::vector<uint8_t> actual_data = data;
+
+    // --- 使能CRC后，动态追加 1/2/4 字节 ---
+    if (crcEnabled_) {
+        std::vector<uint8_t> crc_payload = { static_cast<uint8_t>(slaveAddress << 1), regAddr };
+        crc_payload.insert(crc_payload.end(), data.begin(), data.end());
+        uint32_t calc_crc = I2CDebugger::CrcCalculator::Calculate(crcType_, crc_payload);
+        AppendCrcToData(actual_data, calc_crc, crcType_);
+    }
+
     if (currentMode_ == DeviceMode::MODE_SMBUS) {
-        // SMBus 不支持 Flush，照常直发
         std::vector<uint8_t> buffer;
         buffer.push_back(regAddr);
-        buffer.insert(buffer.end(), data.begin(), data.end());
+        buffer.insert(buffer.end(), actual_data.begin(), actual_data.end());
 
         int ret = SMBus_Write(device_, buffer.data(), slaveAddress << 1, static_cast<BYTE>(buffer.size()));
         if (ret != 0) lastError_ = "SMBus_Write failed: " + std::to_string(ret);
@@ -270,14 +335,14 @@ INT PMBus::Write(uint8_t slaveAddress, uint8_t regAddr, const std::vector<uint8_
     }
     else {
         std::vector<uint8_t> payload = { regAddr };
-        payload.insert(payload.end(), data.begin(), data.end());
+        payload.insert(payload.end(), actual_data.begin(), actual_data.end());
         std::vector<uint8_t> tx_data = RPI2C::Protocol::packWrite(slaveAddress, payload);
 
-        // --- 命中 Flush 机制 ---
         if (flushMode_) {
             txBuffer_.insert(txBuffer_.end(), tx_data.begin(), tx_data.end());
-            commandQueue_.push_back({ PendingTask::WRITE, nullptr, 0 });
-            return 0; // 返回成功，表示已加入队列
+            // 记录当前的 crcType_ 以备 Flush 校验用
+            commandQueue_.push_back({ PendingTask::WRITE, nullptr, 0, slaveAddress, regAddr, crcEnabled_, crcType_ });
+            return 0;
         }
 
         RPI2C::Packet rx_packet;
@@ -296,32 +361,82 @@ INT PMBus::Read(uint8_t slaveAddress, uint8_t regAddr, uint16_t numBytes, std::v
 
     result.clear();
 
+    // --- 读取时请求 长度 + (CRC字节数) ---
+    int crcLen = GetCrcByteLength(crcType_);
+    uint16_t actual_numBytes = crcEnabled_ ? numBytes + crcLen : numBytes;
+
     if (currentMode_ == DeviceMode::MODE_SMBUS) {
-        result.resize(numBytes);
-        int ret = SMBus_WriteRead(device_, result.data(), slaveAddress << 1, static_cast<WORD>(numBytes), static_cast<BYTE>(1), &regAddr);
-        if (ret < 0) lastError_ = "SMBus_WriteRead failed: " + std::to_string(ret);
+        std::vector<uint8_t> temp_result(actual_numBytes);
+        int ret = SMBus_WriteRead(device_, temp_result.data(), slaveAddress << 1, static_cast<WORD>(actual_numBytes), static_cast<BYTE>(1), &regAddr);
+        if (ret < 0) {
+            lastError_ = "SMBus_WriteRead failed: " + std::to_string(ret);
+            return ret;
+        }
+
+        if (crcEnabled_) {
+            std::vector<uint8_t> header = {
+                static_cast<uint8_t>((slaveAddress << 1) | 1),
+                regAddr
+            };
+
+            bool crcOk = VerifyPacketCrc(temp_result, header, crcType_);
+
+            // 【修改】无论CRC对错，先把尾部的 CRC 字节剥离，把数据保留下来
+            if (temp_result.size() >= static_cast<size_t>(crcLen)) {
+                temp_result.erase(temp_result.end() - crcLen, temp_result.end());
+            }
+            result = temp_result; // 传回剥离CRC后的真实数据
+
+            // 然后再报错
+            if (!crcOk) {
+                lastError_ = "SMBus Read CRC Error.";
+                return CRC_ERROR_CODE;
+            }
+        }
+        else {
+            result = temp_result;
+        }
         return ret;
     }
     else {
         std::vector<uint8_t> target_reg = { regAddr };
-        std::vector<uint8_t> tx_data = RPI2C::Protocol::packWriteRead(slaveAddress, numBytes, target_reg);
+        std::vector<uint8_t> tx_data = RPI2C::Protocol::packWriteRead(slaveAddress, actual_numBytes, target_reg);
 
-        // --- 命中 Flush 机制 ---
         if (flushMode_) {
             txBuffer_.insert(txBuffer_.end(), tx_data.begin(), tx_data.end());
-            // 传入 result 的地址，等 Flush() 收到数据后再解引用写进去
-            commandQueue_.push_back({ PendingTask::READ, &result, numBytes });
+            commandQueue_.push_back({ PendingTask::READ, &result, actual_numBytes, slaveAddress, regAddr, crcEnabled_, crcType_ });
             return 0;
         }
 
         RPI2C::Packet rx_packet;
         if (executeSerialCommand(tx_data, rx_packet)) {
-            if (rx_packet.len == numBytes) {
-                result = rx_packet.payload;
+            if (rx_packet.len == actual_numBytes) {
+                if (crcEnabled_) {
+                    std::vector<uint8_t> header = {
+                        static_cast<uint8_t>((slaveAddress << 1) | 1),
+                        regAddr
+                    };
+
+                    bool crcOk = VerifyPacketCrc(rx_packet.payload, header, crcType_);
+
+                    // 【修改】无论CRC对错，剥离尾部 CRC 字节，把数据保留下来
+                    if (rx_packet.payload.size() >= static_cast<size_t>(crcLen)) {
+                        rx_packet.payload.erase(rx_packet.payload.end() - crcLen, rx_packet.payload.end());
+                    }
+                    result = rx_packet.payload; // 传回剥离CRC后的真实数据
+
+                    if (!crcOk) {
+                        lastError_ = "Serial I2C Read CRC Error.";
+                        return CRC_ERROR_CODE;
+                    }
+                }
+                else {
+                    result = rx_packet.payload;
+                }
                 return 0;
             }
             else {
-                lastError_ = "Serial I2C Read NACK.";
+                lastError_ = "Serial I2C Read NACK or Length mismatch.";
                 return SLAVE_NOT_RESPONSE;
             }
         }
@@ -333,19 +448,25 @@ INT PMBus::SendByte(uint8_t slaveAddress, uint8_t byte) {
     if (currentMode_ == DeviceMode::MODE_NONE) return DEVICE_NOT_CONNECTED;
     if (slaveAddress > 0x7F) { lastError_ = "Invalid slave address"; return DEVICE_NOT_CONNECTED; }
 
+    std::vector<uint8_t> actual_data = { byte };
+
+    if (crcEnabled_) {
+        std::vector<uint8_t> crc_payload = { static_cast<uint8_t>(slaveAddress << 1), byte };
+        uint32_t calc_crc = I2CDebugger::CrcCalculator::Calculate(crcType_, crc_payload);
+        AppendCrcToData(actual_data, calc_crc, crcType_);
+    }
+
     if (currentMode_ == DeviceMode::MODE_SMBUS) {
-        int ret = SMBus_Write(device_, &byte, slaveAddress << 1, static_cast<BYTE>(1));
-        if (ret != 0) lastError_ = "SMBus_Write_Byte failed: " + std::to_string(ret);
+        int ret = SMBus_Write(device_, actual_data.data(), slaveAddress << 1, static_cast<BYTE>(actual_data.size()));
+        if (ret != 0) lastError_ = "SMBus_Write failed (SendByte): " + std::to_string(ret);
         return ret;
     }
     else {
-        std::vector<uint8_t> payload = { byte };
-        std::vector<uint8_t> tx_data = RPI2C::Protocol::packWrite(slaveAddress, payload);
+        std::vector<uint8_t> tx_data = RPI2C::Protocol::packWrite(slaveAddress, actual_data);
 
-        // --- 命中 Flush 机制 ---
         if (flushMode_) {
             txBuffer_.insert(txBuffer_.end(), tx_data.begin(), tx_data.end());
-            commandQueue_.push_back({ PendingTask::WRITE, nullptr, 0 });
+            commandQueue_.push_back({ PendingTask::WRITE, nullptr, 0, slaveAddress, byte, crcEnabled_, crcType_ });
             return 0;
         }
 
@@ -421,3 +542,4 @@ INT PMBus::ScanDevices(uint8_t startAddr, uint8_t endAddr, std::vector<uint8_t>&
 std::string PMBus::GetLastError() const {
     return lastError_;
 }
+

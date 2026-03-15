@@ -37,6 +37,9 @@ namespace I2CDebugger {
         else if (returnValue == DEVICE_NOT_CONNECTED) {
             return ErrorType::DeviceDisconnected;
         }
+        else if (returnValue == CRC_ERROR_CODE) {
+            return ErrorType::CRCNotCorrect;
+        }
         return ErrorType::UnknownError;
     }
 
@@ -89,8 +92,9 @@ namespace I2CDebugger {
         m_taskCv.notify_one();
     }
 
+    // --- 修改：添加 CRC 参数支持 ---
     void HardwareService::ReadRegister(uint8_t slaveAddr, uint8_t regAddr, uint8_t length,
-        uint32_t controlId, uint32_t commandId) {
+        uint32_t controlId, uint32_t commandId, bool crcEnabled, int crcType) {
         HardwareTask task;
         task.type = TaskType::ReadRegister;
         task.slaveAddr = slaveAddr;
@@ -98,6 +102,8 @@ namespace I2CDebugger {
         task.length = length;
         task.controlId = controlId;
         task.commandId = commandId;
+        task.crcEnabled = crcEnabled;
+        task.crcType = crcType;
         std::lock_guard<std::mutex> lock(m_taskMutex);
         m_taskQueue.push(task);
         m_taskCv.notify_one();
@@ -105,7 +111,7 @@ namespace I2CDebugger {
 
     void HardwareService::WriteRegister(uint8_t slaveAddr, uint8_t regAddr,
         const std::vector<uint8_t>& data,
-        uint32_t controlId, uint32_t commandId) {
+        uint32_t controlId, uint32_t commandId, bool crcEnabled, int crcType) {
         HardwareTask task;
         task.type = TaskType::WriteRegister;
         task.slaveAddr = slaveAddr;
@@ -113,42 +119,51 @@ namespace I2CDebugger {
         task.data = data;
         task.controlId = controlId;
         task.commandId = commandId;
+        task.crcEnabled = crcEnabled;
+        task.crcType = crcType;
         std::lock_guard<std::mutex> lock(m_taskMutex);
         m_taskQueue.push(task);
         m_taskCv.notify_one();
     }
 
-    void HardwareService::SendCommand(uint8_t slaveAddr, uint8_t regAddr, uint32_t controlId, uint32_t commandId) {
+    void HardwareService::SendCommand(uint8_t slaveAddr, uint8_t regAddr,
+        uint32_t controlId, uint32_t commandId, bool crcEnabled, int crcType) {
         HardwareTask task;
         task.type = TaskType::SendCommand;
         task.slaveAddr = slaveAddr;
         task.regAddr = regAddr;
         task.controlId = controlId;
         task.commandId = commandId;
+        task.crcEnabled = crcEnabled;
+        task.crcType = crcType;
         std::lock_guard<std::mutex> lock(m_taskMutex);
         m_taskQueue.push(task);
         m_taskCv.notify_one();
     }
 
     void HardwareService::ReadAllRegisters(uint8_t defaultSlaveAddr,
-        const std::vector<RegisterEntry>& entries) {
+        const std::vector<RegisterEntry>& entries, bool crcEnabled, int crcType) {
         HardwareTask task;
         task.type = TaskType::ReadAllRegisters;
         task.slaveAddr = defaultSlaveAddr;
         task.registerEntries = entries;
         task.controlId = 1;
+        task.crcEnabled = crcEnabled;
+        task.crcType = crcType;
         std::lock_guard<std::mutex> lock(m_taskMutex);
         m_taskQueue.push(task);
         m_taskCv.notify_one();
     }
 
     void HardwareService::ExecuteAllSingleTrigger(uint8_t defaultSlaveAddr,
-        const std::vector<SingleTriggerEntry>& entries) {
+        const std::vector<SingleTriggerEntry>& entries, bool crcEnabled, int crcType) {
         HardwareTask task;
         task.type = TaskType::ExecuteAllCommands;
         task.slaveAddr = defaultSlaveAddr;
         task.singleEntries = entries;
         task.controlId = 2;
+        task.crcEnabled = crcEnabled;
+        task.crcType = crcType;
         std::lock_guard<std::mutex> lock(m_taskMutex);
         m_taskQueue.push(task);
         m_taskCv.notify_one();
@@ -156,10 +171,12 @@ namespace I2CDebugger {
 
     void HardwareService::StartPeriodicExecution(uint8_t defaultSlaveAddr,
         const std::vector<PeriodicTriggerEntry>& entries,
-        uint32_t intervalMs) {
+        uint32_t intervalMs, bool crcEnabled, int crcType) {
         m_periodicEntries = entries;
         m_periodicSlaveAddr = defaultSlaveAddr;
         m_periodicIntervalMs = intervalMs;
+        m_periodicCrcEnabled = crcEnabled;
+        m_periodicCrcType = crcType;
         m_periodicRunning = true;
         m_taskCv.notify_one();
     }
@@ -169,7 +186,7 @@ namespace I2CDebugger {
     }
 
     void HardwareService::InsertSingleRead(uint8_t slaveAddr, uint8_t regAddr, uint8_t length,
-        uint32_t controlId, uint32_t commandId) {
+        uint32_t controlId, uint32_t commandId, bool crcEnabled, int crcType) {
         HardwareTask task;
         task.type = TaskType::ReadRegister;
         task.slaveAddr = slaveAddr;
@@ -177,6 +194,8 @@ namespace I2CDebugger {
         task.length = length;
         task.controlId = controlId;
         task.commandId = commandId;
+        task.crcEnabled = crcEnabled;
+        task.crcType = crcType;
         std::lock_guard<std::mutex> lock(m_taskMutex);
         m_priorityQueue.push(task);
         m_taskCv.notify_one();
@@ -184,7 +203,7 @@ namespace I2CDebugger {
 
     void HardwareService::InsertSingleWrite(uint8_t slaveAddr, uint8_t regAddr,
         const std::vector<uint8_t>& data,
-        uint32_t controlId, uint32_t commandId) {
+        uint32_t controlId, uint32_t commandId, bool crcEnabled, int crcType) {
         HardwareTask task;
         task.type = TaskType::WriteRegister;
         task.slaveAddr = slaveAddr;
@@ -192,18 +211,23 @@ namespace I2CDebugger {
         task.data = data;
         task.controlId = controlId;
         task.commandId = commandId;
+        task.crcEnabled = crcEnabled;
+        task.crcType = crcType;
         std::lock_guard<std::mutex> lock(m_taskMutex);
         m_priorityQueue.push(task);
         m_taskCv.notify_one();
     }
 
-    void HardwareService::InsertSingleCommand(uint8_t slaveAddr, uint8_t regAddr, uint32_t controlId, uint32_t commandId) {
+    void HardwareService::InsertSingleCommand(uint8_t slaveAddr, uint8_t regAddr,
+        uint32_t controlId, uint32_t commandId, bool crcEnabled, int crcType) {
         HardwareTask task;
         task.type = TaskType::SendCommand;
         task.slaveAddr = slaveAddr;
         task.regAddr = regAddr;
         task.controlId = controlId;
         task.commandId = commandId;
+        task.crcEnabled = crcEnabled;
+        task.crcType = crcType;
         std::lock_guard<std::mutex> lock(m_taskMutex);
         m_priorityQueue.push(task);
         m_taskCv.notify_one();
@@ -364,6 +388,8 @@ namespace I2CDebugger {
             int ret;
             {
                 std::lock_guard<std::mutex> lock(m_deviceMutex);
+                m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：应用任务专属 CRC 配置
+
                 ret = m_pmbus.Read(task.slaveAddr, task.regAddr, task.length, result);
                 if (ret < 0) {
                     packet.errorMsg = m_pmbus.GetLastError();
@@ -372,9 +398,9 @@ namespace I2CDebugger {
 
             packet.success = (ret >= 0);
             packet.errorType = GetErrorType(ret);
-            if (packet.success) {
+            //if (packet.success) {
                 packet.rawData = result;
-            }
+            //}
 
             if (ret == DEVICE_NOT_CONNECTED) {
                 if (m_dataCallback) {
@@ -405,6 +431,8 @@ namespace I2CDebugger {
             int ret;
             {
                 std::lock_guard<std::mutex> lock(m_deviceMutex);
+                m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：应用任务专属 CRC 配置
+
                 ret = m_pmbus.Write(task.slaveAddr, task.regAddr, task.data);
                 if (ret < 0) {
                     packet.errorMsg = m_pmbus.GetLastError();
@@ -443,6 +471,8 @@ namespace I2CDebugger {
             int ret;
             {
                 std::lock_guard<std::mutex> lock(m_deviceMutex);
+                m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：应用任务专属 CRC 配置
+
                 ret = m_pmbus.SendByte(task.slaveAddr, task.regAddr);
                 if (ret < 0) {
                     packet.errorMsg = m_pmbus.GetLastError();
@@ -481,11 +511,12 @@ namespace I2CDebugger {
 
                 {
                     std::lock_guard<std::mutex> lock(m_deviceMutex);
+                    m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：同步批量任务 CRC 配置
                     m_pmbus.FlushOn();
+
                     for (size_t i = 0; i < task.registerEntries.size() && m_isConnected; i++) {
                         const auto& entry = task.registerEntries[i];
                         uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : task.slaveAddr;
-                        // 此时传入的 batchResults[i] 生命周期绝对安全
                         batchRet[i] = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, batchResults[i]);
                     }
                     flushSuccess = m_pmbus.Flush();
@@ -501,7 +532,6 @@ namespace I2CDebugger {
                     packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::system_clock::now().time_since_epoch()).count();
 
-                    // 如果容器内获取到了正确长度的数据，即为读取成功
                     if (batchResults[i].size() == task.registerEntries[i].length) {
                         packet.success = true;
                         packet.rawData = batchResults[i];
@@ -536,6 +566,7 @@ namespace I2CDebugger {
                     int ret;
                     {
                         std::lock_guard<std::mutex> lock(m_deviceMutex);
+                        m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：应用任务专属 CRC 配置
                         ret = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, result);
                         if (ret < 0) {
                             packet.errorMsg = m_pmbus.GetLastError();
@@ -562,7 +593,7 @@ namespace I2CDebugger {
                     }
                 }
             }
-            
+
             break;
         }
 
@@ -575,7 +606,9 @@ namespace I2CDebugger {
 
                 {
                     std::lock_guard<std::mutex> lock(m_deviceMutex);
+                    m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：同步批量任务 CRC 配置
                     m_pmbus.FlushOn();
+
                     for (size_t i = 0; i < task.singleEntries.size() && m_isConnected; i++) {
                         const auto& entry = task.singleEntries[i];
                         if (!entry.enabled) continue;
@@ -593,7 +626,6 @@ namespace I2CDebugger {
                             break;
                         }
 
-                        // 支持延时：中间截断 Flush 一次，等待后再继续装填
                         if (entry.delayMs > 0) {
                             m_pmbus.Flush();
                             std::this_thread::sleep_for(std::chrono::milliseconds(entry.delayMs));
@@ -655,6 +687,8 @@ namespace I2CDebugger {
 
                     {
                         std::lock_guard<std::mutex> lock(m_deviceMutex);
+                        m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：应用任务专属 CRC 配置
+
                         switch (entry.type) {
                         case CommandType::Read: {
                             std::vector<uint8_t> result;
@@ -717,7 +751,9 @@ namespace I2CDebugger {
 
             {
                 std::lock_guard<std::mutex> lock(m_deviceMutex);
+                m_pmbus.SetCrcConfig(m_periodicCrcEnabled, m_periodicCrcType); // --- 修改：应用周期任务 CRC 配置
                 m_pmbus.FlushOn();
+
                 for (size_t i = 0; i < m_periodicEntries.size() && m_periodicRunning && m_isConnected; i++) {
                     const auto& entry = m_periodicEntries[i];
                     if (!entry.enabled) continue;
@@ -796,6 +832,7 @@ namespace I2CDebugger {
 
                 {
                     std::lock_guard<std::mutex> lock(m_deviceMutex);
+                    m_pmbus.SetCrcConfig(m_periodicCrcEnabled, m_periodicCrcType); // --- 修改：应用周期任务 CRC 配置
 
                     switch (entry.type) {
                     case CommandType::Read: {
