@@ -164,6 +164,9 @@ namespace I2CDebugger {
         j["slaveAddress"] = group.slaveAddress;
         j["interval"] = group.interval;
         j["logConfig"] = DataLogConfigToJson(group.logConfig);
+        j["crcEnabled"] = group.crcEnabled;
+        j["crcType"] = group.crcType;
+
 
         j["registerEntries"] = json::array();
         for (const auto& entry : group.registerEntries) {
@@ -190,6 +193,8 @@ namespace I2CDebugger {
         if (j.contains("slaveAddress")) group.slaveAddress = j["slaveAddress"].get<uint8_t>();
         if (j.contains("interval")) group.interval = j["interval"].get<uint32_t>();
         if (j.contains("logConfig")) group.logConfig = JsonToDataLogConfig(j["logConfig"]);
+        if (j.contains("crcEnabled")) group.crcEnabled = j["crcEnabled"].get<bool>();
+        if (j.contains("crcType")) group.crcType = j["crcType"].get<int>();
 
         if (j.contains("registerEntries")) {
             for (const auto& entryJson : j["registerEntries"]) {
