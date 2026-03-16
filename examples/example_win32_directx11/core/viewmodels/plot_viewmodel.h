@@ -45,7 +45,7 @@ namespace I2CDebugger {
         bool IsScrolling() const { return m_isSystemRunning && !m_isUserPaused; }
         // ========================================
         // 添加新通道 (增加 id 参数)
-        void AddChannel(size_t id, const std::string& name, ImVec4 color, int bufferSize = 2000) {
+        void AddChannel(size_t id, const std::string& name, ImVec4 color, int bufferSize = 20000) {
             m_channels.push_back(std::make_shared<ChannelModel>(id, name, color, bufferSize));
         }
         // 清空所有通道
