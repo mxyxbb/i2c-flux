@@ -45,7 +45,8 @@ public:
     // --- 新增：Batch 批处理缓冲机制 (仅针对 Serial 模式有效) ---
     void FlushOn();
     void FlushOff();
-    bool Flush();
+    // 将 Flush 的返回值改为 int 数组，以记录每条指令的独立结果
+    std::vector<int> Flush();
 
     void SetCrcConfig(bool enabled, int type) {
         crcEnabled_ = enabled;

@@ -68,6 +68,7 @@ namespace I2CDebugger {
         switch (errorType) {
         case ErrorType::SlaveNotResponse: return "NAK";
         case ErrorType::DeviceDisconnected: return "断开";
+        case ErrorType::CRCNotCorrect: return "CRC错";
         default: return "错误";
         }
     }
@@ -1378,8 +1379,8 @@ namespace I2CDebugger {
 
                 // 列7: 错误计数（NAK次数）
                 ImGui::TableSetColumnIndex(7);
-                if (entry.errorCount > 0) {
-                    ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "%u", entry.errorCount);
+                if (entry.errorCountNAK > 0) {
+                    ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "%u", entry.errorCountNAK);
                 }
                 else {
                     ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "0");

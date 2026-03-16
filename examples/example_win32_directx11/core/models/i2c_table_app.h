@@ -64,7 +64,8 @@ namespace I2CDebugger {
         bool lastSuccess = true;
         ErrorType lastErrorType = ErrorType::None;
         std::string lastError;
-        uint32_t errorCount = 0;
+        uint32_t errorCountNAK = 0;
+        uint32_t errorCountCRC = 0;
 
         // 解析配置
         ParseConfig parseConfig;

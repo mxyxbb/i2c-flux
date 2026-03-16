@@ -21,7 +21,7 @@ namespace I2CDebugger {
             // --- 双向绑定：CRC 类型 ---
             ImGui::Text("算法类型:");
             ImGui::SameLine();
-            const char* crcTypes[] = { "CRC-8 (SMBus/0x07)", "CRC-16 (Modbus/0xA001)", "CRC-32 (0xEDB88320)" };
+            const char* crcTypes[] = { "CRC-8 (SMBus/0x07)", "--", "--" };
             int currentType = viewModel->GetCrcType();
 
             //ImGui::SetNextItemWidth(200);
@@ -73,11 +73,19 @@ namespace I2CDebugger {
 
             ImGui::Spacing();
 
-            // 行4-7：展示参与计算的原始值与结果 (由 ViewModel 提供格式化好的字符串)
-            ImGui::Text("字节1 (从机Addr<<1 | R/W) : %s", viewModel->GetSimByte1Str().c_str());
-            ImGui::Text("字节2 (寄存器Addr)        : %s", viewModel->GetSimByte2Str().c_str());
-            ImGui::Text("字节3、4... (数据)        : %s", viewModel->GetSimDataStr().c_str());
-
+            if (m_simRwMode == 0) {
+                // 行4-7：展示参与计算的原始值与结果 (由 ViewModel 提供格式化好的字符串)
+                ImGui::Text("字节1 (从机Addr<<1 | W/0) : %s", viewModel->GetSimByte1Str_w().c_str());
+                ImGui::Text("字节2 (寄存器Addr)        : %s", viewModel->GetSimByte2Str().c_str());
+                ImGui::Text("字节3、4... (数据)        : %s", viewModel->GetSimDataStr().c_str());
+            }
+            else if (m_simRwMode == 1) {
+                // 行4-7：展示参与计算的原始值与结果 (由 ViewModel 提供格式化好的字符串)
+                ImGui::Text("字节1 (从机Addr<<1 | W/0) : %s", viewModel->GetSimByte1Str_w().c_str());
+                ImGui::Text("字节2 (寄存器Addr)        : %s", viewModel->GetSimByte2Str().c_str());
+                ImGui::Text("字节3 (从机Addr<<1 | R/1) : %s", viewModel->GetSimByte1Str_r().c_str());
+                ImGui::Text("字节4、5... (数据)        : %s", viewModel->GetSimDataStr().c_str());
+            }
             ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "计算结果 (CRC)           : %s", viewModel->GetSimCrcResult().c_str());
 
             // 触发模拟计算

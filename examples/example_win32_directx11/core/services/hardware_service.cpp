@@ -34,11 +34,11 @@ namespace I2CDebugger {
         else if (returnValue == SLAVE_NOT_RESPONSE) {
             return ErrorType::SlaveNotResponse;
         }
-        else if (returnValue == DEVICE_NOT_CONNECTED) {
-            return ErrorType::DeviceDisconnected;
-        }
         else if (returnValue == CRC_ERROR_CODE) {
             return ErrorType::CRCNotCorrect;
+        }
+        else if (returnValue == DEVICE_NOT_CONNECTED) {
+            return ErrorType::DeviceDisconnected;
         }
         return ErrorType::UnknownError;
     }
@@ -92,7 +92,6 @@ namespace I2CDebugger {
         m_taskCv.notify_one();
     }
 
-    // --- 修改：添加 CRC 参数支持 ---
     void HardwareService::ReadRegister(uint8_t slaveAddr, uint8_t regAddr, uint8_t length,
         uint32_t controlId, uint32_t commandId, bool crcEnabled, int crcType) {
         HardwareTask task;
@@ -388,26 +387,23 @@ namespace I2CDebugger {
             int ret;
             {
                 std::lock_guard<std::mutex> lock(m_deviceMutex);
-                m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：应用任务专属 CRC 配置
-
+                m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType);
                 ret = m_pmbus.Read(task.slaveAddr, task.regAddr, task.length, result);
                 if (ret < 0) {
                     packet.errorMsg = m_pmbus.GetLastError();
                 }
             }
 
+            packet.rawData = result;
             packet.success = (ret >= 0);
             packet.errorType = GetErrorType(ret);
-            //if (packet.success) {
-                packet.rawData = result;
-            //}
+
+            if (ret == CRC_ERROR_CODE) packet.errorMsg = "CRC校验错误";
 
             if (ret == DEVICE_NOT_CONNECTED) {
                 if (m_dataCallback) {
                     std::lock_guard<std::mutex> cbLock(m_callbackMutex);
-                    m_callbackQueue.push([this, packet]() {
-                        m_dataCallback(packet);
-                        });
+                    m_callbackQueue.push([this, packet]() { m_dataCallback(packet); });
                 }
                 HandleDeviceDisconnected();
                 break;
@@ -415,9 +411,7 @@ namespace I2CDebugger {
 
             if (m_dataCallback) {
                 std::lock_guard<std::mutex> cbLock(m_callbackMutex);
-                m_callbackQueue.push([this, packet]() {
-                    m_dataCallback(packet);
-                    });
+                m_callbackQueue.push([this, packet]() { m_dataCallback(packet); });
             }
             break;
         }
@@ -431,8 +425,7 @@ namespace I2CDebugger {
             int ret;
             {
                 std::lock_guard<std::mutex> lock(m_deviceMutex);
-                m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：应用任务专属 CRC 配置
-
+                m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType);
                 ret = m_pmbus.Write(task.slaveAddr, task.regAddr, task.data);
                 if (ret < 0) {
                     packet.errorMsg = m_pmbus.GetLastError();
@@ -445,9 +438,7 @@ namespace I2CDebugger {
             if (ret == DEVICE_NOT_CONNECTED) {
                 if (m_dataCallback) {
                     std::lock_guard<std::mutex> cbLock(m_callbackMutex);
-                    m_callbackQueue.push([this, packet]() {
-                        m_dataCallback(packet);
-                        });
+                    m_callbackQueue.push([this, packet]() { m_dataCallback(packet); });
                 }
                 HandleDeviceDisconnected();
                 break;
@@ -455,9 +446,7 @@ namespace I2CDebugger {
 
             if (m_dataCallback) {
                 std::lock_guard<std::mutex> cbLock(m_callbackMutex);
-                m_callbackQueue.push([this, packet]() {
-                    m_dataCallback(packet);
-                    });
+                m_callbackQueue.push([this, packet]() { m_dataCallback(packet); });
             }
             break;
         }
@@ -471,8 +460,7 @@ namespace I2CDebugger {
             int ret;
             {
                 std::lock_guard<std::mutex> lock(m_deviceMutex);
-                m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：应用任务专属 CRC 配置
-
+                m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType);
                 ret = m_pmbus.SendByte(task.slaveAddr, task.regAddr);
                 if (ret < 0) {
                     packet.errorMsg = m_pmbus.GetLastError();
@@ -485,9 +473,7 @@ namespace I2CDebugger {
             if (ret == DEVICE_NOT_CONNECTED) {
                 if (m_dataCallback) {
                     std::lock_guard<std::mutex> cbLock(m_callbackMutex);
-                    m_callbackQueue.push([this, packet]() {
-                        m_dataCallback(packet);
-                        });
+                    m_callbackQueue.push([this, packet]() { m_dataCallback(packet); });
                 }
                 HandleDeviceDisconnected();
                 break;
@@ -495,9 +481,7 @@ namespace I2CDebugger {
 
             if (m_dataCallback) {
                 std::lock_guard<std::mutex> cbLock(m_callbackMutex);
-                m_callbackQueue.push([this, packet]() {
-                    m_dataCallback(packet);
-                    });
+                m_callbackQueue.push([this, packet]() { m_dataCallback(packet); });
             }
             break;
         }
@@ -506,12 +490,11 @@ namespace I2CDebugger {
             if (m_useBatchMode) {
                 std::vector<std::vector<uint8_t>> batchResults(task.registerEntries.size());
                 std::vector<int> batchRet(task.registerEntries.size(), -1);
-                bool flushSuccess = false;
-                std::string batchError;
+                std::vector<int> flushRet;
 
                 {
                     std::lock_guard<std::mutex> lock(m_deviceMutex);
-                    m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：同步批量任务 CRC 配置
+                    m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType);
                     m_pmbus.FlushOn();
 
                     for (size_t i = 0; i < task.registerEntries.size() && m_isConnected; i++) {
@@ -519,12 +502,10 @@ namespace I2CDebugger {
                         uint8_t slaveAddr = entry.overrideSlaveAddr ? entry.slaveAddress : task.slaveAddr;
                         batchRet[i] = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, batchResults[i]);
                     }
-                    flushSuccess = m_pmbus.Flush();
-                    if (!flushSuccess) batchError = m_pmbus.GetLastError();
+                    flushRet = m_pmbus.Flush();
                     m_pmbus.FlushOff();
                 }
 
-                // 统一分发回调
                 for (size_t i = 0; i < task.registerEntries.size() && m_isConnected; i++) {
                     ResponsePacket packet;
                     packet.controlId = 1;
@@ -532,15 +513,17 @@ namespace I2CDebugger {
                     packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::system_clock::now().time_since_epoch()).count();
 
-                    if (batchResults[i].size() == task.registerEntries[i].length) {
-                        packet.success = true;
-                        packet.rawData = batchResults[i];
-                        packet.errorType = ErrorType::None;
+                    // --- 根据返回的错误码精细判定 ---
+                    int ret = (i < flushRet.size()) ? flushRet[i] : SLAVE_NOT_RESPONSE;
+                    packet.rawData = batchResults[i];
+                    packet.success = (ret >= 0);
+                    packet.errorType = GetErrorType(ret);
+
+                    if (ret == CRC_ERROR_CODE) {
+                        packet.errorMsg = "CRC校验错误";
                     }
-                    else {
-                        packet.success = false;
-                        packet.errorType = ErrorType::SlaveNotResponse;
-                        packet.errorMsg = batchError.empty() ? "Batch Read Failed" : batchError;
+                    else if (ret < 0) {
+                        packet.errorMsg = "批处理读取超时/NACK";
                     }
 
                     if (m_dataCallback) {
@@ -566,19 +549,17 @@ namespace I2CDebugger {
                     int ret;
                     {
                         std::lock_guard<std::mutex> lock(m_deviceMutex);
-                        m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：应用任务专属 CRC 配置
+                        m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType);
                         ret = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, result);
                         if (ret < 0) {
                             packet.errorMsg = m_pmbus.GetLastError();
                         }
                     }
 
+                    packet.rawData = result;
                     packet.success = (ret >= 0);
                     packet.errorType = GetErrorType(ret);
-
-                    if (packet.success) {
-                        packet.rawData = result;
-                    }
+                    if (ret == CRC_ERROR_CODE) packet.errorMsg = "CRC校验错误";
 
                     if (m_dataCallback) {
                         std::lock_guard<std::mutex> cbLock(m_callbackMutex);
@@ -593,7 +574,6 @@ namespace I2CDebugger {
                     }
                 }
             }
-
             break;
         }
 
@@ -601,12 +581,11 @@ namespace I2CDebugger {
             if (m_useBatchMode) {
                 std::vector<std::vector<uint8_t>> batchResults(task.singleEntries.size());
                 std::vector<int> batchRet(task.singleEntries.size(), -1);
-                bool flushSuccess = false;
-                std::string batchError;
+                std::vector<int> flushRet;
 
                 {
                     std::lock_guard<std::mutex> lock(m_deviceMutex);
-                    m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：同步批量任务 CRC 配置
+                    m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType);
                     m_pmbus.FlushOn();
 
                     for (size_t i = 0; i < task.singleEntries.size() && m_isConnected; i++) {
@@ -631,8 +610,7 @@ namespace I2CDebugger {
                             std::this_thread::sleep_for(std::chrono::milliseconds(entry.delayMs));
                         }
                     }
-                    flushSuccess = m_pmbus.Flush();
-                    if (!flushSuccess) batchError = m_pmbus.GetLastError();
+                    flushRet = m_pmbus.Flush();
                     m_pmbus.FlushOff();
                 }
 
@@ -646,19 +624,23 @@ namespace I2CDebugger {
                     packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::system_clock::now().time_since_epoch()).count();
 
+                    int ret = (i < flushRet.size()) ? flushRet[i] : SLAVE_NOT_RESPONSE;
+                    packet.success = (ret >= 0);
+                    packet.errorType = GetErrorType(ret);
+
                     if (entry.type == CommandType::Read) {
-                        if (batchResults[i].size() == entry.length) {
-                            packet.success = true;
-                            packet.rawData = batchResults[i];
+                        packet.rawData = batchResults[i];
+                        if (ret == CRC_ERROR_CODE) {
+                            packet.errorMsg = "CRC校验错误";
                         }
-                        else {
-                            packet.success = false;
-                            packet.errorMsg = batchError.empty() ? "Batch Read Mismatch" : batchError;
+                        else if (ret < 0) {
+                            packet.errorMsg = "批量读取失败";
                         }
                     }
                     else {
-                        packet.success = flushSuccess;
-                        if (!flushSuccess) packet.errorMsg = batchError;
+                        if (ret < 0) {
+                            packet.errorMsg = "写入/命令失败";
+                        }
                     }
 
                     if (m_dataCallback) {
@@ -687,18 +669,17 @@ namespace I2CDebugger {
 
                     {
                         std::lock_guard<std::mutex> lock(m_deviceMutex);
-                        m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType); // --- 修改：应用任务专属 CRC 配置
+                        m_pmbus.SetCrcConfig(task.crcEnabled, task.crcType);
 
                         switch (entry.type) {
                         case CommandType::Read: {
                             std::vector<uint8_t> result;
                             ret = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, result);
-                            if (ret >= 0) {
-                                packet.rawData = result;
-                            }
+                            packet.rawData = result;
                             break;
                         }
-                        case CommandType::Write:ret = m_pmbus.Write(slaveAddr, entry.regAddress, entry.data);
+                        case CommandType::Write:
+                            ret = m_pmbus.Write(slaveAddr, entry.regAddress, entry.data);
                             break;
                         case CommandType::SendCommand:
                             ret = m_pmbus.SendByte(slaveAddr, entry.regAddress);
@@ -712,6 +693,7 @@ namespace I2CDebugger {
 
                     packet.success = (ret >= 0);
                     packet.errorType = GetErrorType(ret);
+                    if (ret == CRC_ERROR_CODE) packet.errorMsg = "CRC校验错误";
 
                     if (m_dataCallback) {
                         std::lock_guard<std::mutex> cbLock(m_callbackMutex);
@@ -746,12 +728,11 @@ namespace I2CDebugger {
         if (m_useBatchMode) {
             std::vector<std::vector<uint8_t>> batchResults(m_periodicEntries.size());
             std::vector<int> batchRet(m_periodicEntries.size(), -1);
-            bool flushSuccess = false;
-            std::string batchError;
+            std::vector<int> flushRet;
 
             {
                 std::lock_guard<std::mutex> lock(m_deviceMutex);
-                m_pmbus.SetCrcConfig(m_periodicCrcEnabled, m_periodicCrcType); // --- 修改：应用周期任务 CRC 配置
+                m_pmbus.SetCrcConfig(m_periodicCrcEnabled, m_periodicCrcType);
                 m_pmbus.FlushOn();
 
                 for (size_t i = 0; i < m_periodicEntries.size() && m_periodicRunning && m_isConnected; i++) {
@@ -776,8 +757,7 @@ namespace I2CDebugger {
                         std::this_thread::sleep_for(std::chrono::milliseconds(entry.delayMs));
                     }
                 }
-                flushSuccess = m_pmbus.Flush();
-                if (!flushSuccess) batchError = m_pmbus.GetLastError();
+                flushRet = m_pmbus.Flush();
                 m_pmbus.FlushOff();
             }
 
@@ -791,19 +771,23 @@ namespace I2CDebugger {
                 packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now().time_since_epoch()).count();
 
+                int ret = (i < flushRet.size()) ? flushRet[i] : SLAVE_NOT_RESPONSE;
+                packet.success = (ret >= 0);
+                packet.errorType = GetErrorType(ret);
+
                 if (entry.type == CommandType::Read) {
-                    if (batchResults[i].size() == entry.length) {
-                        packet.success = true;
-                        packet.rawData = batchResults[i];
+                    packet.rawData = batchResults[i]; // 始终保留数据
+                    if (ret == CRC_ERROR_CODE) {
+                        packet.errorMsg = "CRC校验错误";
                     }
-                    else {
-                        packet.success = false;
-                        packet.errorMsg = batchError.empty() ? "Batch NACK" : batchError;
+                    else if (ret < 0) {
+                        packet.errorMsg = "读取失败";
                     }
                 }
                 else {
-                    packet.success = flushSuccess;
-                    if (!flushSuccess) packet.errorMsg = batchError;
+                    if (ret < 0) {
+                        packet.errorMsg = "写入失败";
+                    }
                 }
 
                 if (m_dataCallback) {
@@ -832,15 +816,13 @@ namespace I2CDebugger {
 
                 {
                     std::lock_guard<std::mutex> lock(m_deviceMutex);
-                    m_pmbus.SetCrcConfig(m_periodicCrcEnabled, m_periodicCrcType); // --- 修改：应用周期任务 CRC 配置
+                    m_pmbus.SetCrcConfig(m_periodicCrcEnabled, m_periodicCrcType);
 
                     switch (entry.type) {
                     case CommandType::Read: {
                         std::vector<uint8_t> result;
                         ret = m_pmbus.Read(slaveAddr, entry.regAddress, entry.length, result);
-                        if (ret >= 0) {
-                            packet.rawData = result;
-                        }
+                        packet.rawData = result; // 始终保留数据
                         break;
                     }
                     case CommandType::Write:
@@ -858,6 +840,7 @@ namespace I2CDebugger {
 
                 packet.success = (ret >= 0);
                 packet.errorType = GetErrorType(ret);
+                if (ret == CRC_ERROR_CODE) packet.errorMsg = "CRC校验错误";
 
                 if (m_dataCallback) {
                     std::lock_guard<std::mutex> cbLock(m_callbackMutex);

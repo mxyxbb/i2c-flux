@@ -56,14 +56,18 @@ namespace I2CDebugger {
         std::vector<uint8_t> dataBytes = m_mainViewModel->ParseHexDataInput(data.c_str());
         dataBytes.resize(len, 0); // 确保长度与用户输入的 length 字段一致
 
-        // 3. 构建 CRC 负载字节
-        uint8_t byte1 = (addr << 1) | (rwMode & 0x01); // 字节1: 从机地址左移1位 + 读写位
-        uint8_t byte2 = reg;                           // 字节2: 寄存器地址
+        // 3. 构建底层需要的基础字节
+        uint8_t addrW = (addr << 1) | 0x00; // 设备的写地址
+        uint8_t addrR = (addr << 1) | 0x01; // 设备的读地址
+        uint8_t byte2 = reg;                // 寄存器地址
 
-        // 4. 更新供 View 显示的文本状态
+        // 4. 更新供 View 显示的文本状态 (用于界面呈现)
         char buf[32];
-        std::snprintf(buf, sizeof(buf), "0x%02X", byte1);
-        m_simByte1Str = buf;
+        uint8_t displayByte1 = (addr << 1) | (rwMode & 0x01);
+        std::snprintf(buf, sizeof(buf), "0x%02X", displayByte1 & 0xfe);
+        m_simByte1Str_w = buf;
+        std::snprintf(buf, sizeof(buf), "0x%02X", displayByte1 | 0x1);
+        m_simByte1Str_r = buf;
 
         std::snprintf(buf, sizeof(buf), "0x%02X", byte2);
         m_simByte2Str = buf;
@@ -73,8 +77,20 @@ namespace I2CDebugger {
 
         // 5. 将所有字节拼接到一起进行 CRC 计算
         std::vector<uint8_t> crcPayload;
-        crcPayload.push_back(byte1);
-        crcPayload.push_back(byte2);
+
+        if (rwMode == 1) {
+            // 读取(Read)的拼接方法: 包含写地址(发寄存器)、寄存器地址、读地址(读数据方向)、读取到的数据
+            crcPayload.push_back(addrW);
+            crcPayload.push_back(byte2);
+            crcPayload.push_back(addrR);
+        }
+        else {
+            // 写入(Write)的拼接方法: 包含写地址、寄存器地址、写入的数据
+            crcPayload.push_back(addrW);
+            crcPayload.push_back(byte2);
+        }
+
+        // 统一在尾部追加数据
         crcPayload.insert(crcPayload.end(), dataBytes.begin(), dataBytes.end());
 
         // 6. 调用底层 Model 算法进行计算
@@ -91,7 +107,8 @@ namespace I2CDebugger {
 
     void CrcViewModel::Reset() {
         m_testResult = "---";
-        m_simByte1Str = "--";
+        m_simByte1Str_w = "--";
+        m_simByte1Str_r = "--";
         m_simByte2Str = "--";
         m_simDataStr = "--";
         m_simCrcResult = "---";

@@ -29,7 +29,8 @@ namespace I2CDebugger {
             const std::string& data);
 
         // 数据绑定：获取模拟计算的中间过程和结果
-        const std::string& GetSimByte1Str() const { return m_simByte1Str; }
+        const std::string& GetSimByte1Str_w() const { return m_simByte1Str_w; }
+        const std::string& GetSimByte1Str_r() const { return m_simByte1Str_r; }
         const std::string& GetSimByte2Str() const { return m_simByte2Str; }
         const std::string& GetSimDataStr() const { return m_simDataStr; }
         const std::string& GetSimCrcResult() const { return m_simCrcResult; }
@@ -39,7 +40,9 @@ namespace I2CDebugger {
         std::string m_testResult = "---";
 
         // --- 新增：用于 UI 绑定的只读字符串状态 ---
-        std::string m_simByte1Str = "--";
+        std::string m_simByte1Str_w = "--";
+        std::string m_simByte1Str_r = "--";
+
         std::string m_simByte2Str = "--";
         std::string m_simDataStr = "--";
         std::string m_simCrcResult = "---";

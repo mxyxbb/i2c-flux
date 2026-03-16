@@ -398,7 +398,8 @@ namespace I2CDebugger {
         }
 
         PeriodicTriggerEntry copy = entries[index];
-        copy.errorCount = 0;
+        copy.errorCountNAK = 0;
+        copy.errorCountCRC = 0;
         entries.insert(entries.begin() + index + 1, copy);
         m_data.selectedRowPeriodic = index + 1;
     }
@@ -535,7 +536,8 @@ namespace I2CDebugger {
     {
         auto& entries = GetCurrentGroup1().periodicTriggerEntries;
         for (auto& entry : entries) {
-            entry.errorCount = 0;
+            entry.errorCountNAK = 0;
+            entry.errorCountCRC = 0;
         }
     }
     // ============== 寄存器表解析方法 ==============
@@ -914,7 +916,7 @@ namespace I2CDebugger {
                 entry.lastSuccess = packet.success;
                 entry.lastErrorType = packet.errorType;
                 entry.data = packet.rawData;
-                if (packet.success && !packet.rawData.empty()) {
+                if (!packet.rawData.empty()) {
                     entry.lastError.clear();
 
                     // 读取成功后自动更新解析值
@@ -923,10 +925,13 @@ namespace I2CDebugger {
                     }
 
                 }
-                else if (!packet.success) {
+                if (!packet.success) {
                     entry.lastError = packet.errorMsg;
                     if (packet.errorType == ErrorType::SlaveNotResponse) {
-                        entry.errorCount++;
+                        entry.errorCountNAK++;
+                    }
+                    else if (packet.errorType == ErrorType::CRCNotCorrect) {
+                        entry.errorCountCRC++;
                     }
                 }
 
