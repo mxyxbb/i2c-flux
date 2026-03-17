@@ -79,7 +79,7 @@ namespace I2CDebugger {
         float m_startTime = 0.0f; // 记录开始时间
         // 【新增】保存状态的私有变量（默认停止运行）
         bool m_isSystemRunning = false;
-        bool m_isUserPaused = false;
+        bool m_isUserPaused = true;
         // 【新增】配置实例
         PlotConfig m_config;
     };
