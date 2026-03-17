@@ -109,6 +109,14 @@ namespace I2CDebugger {
             }
             return UINT32_MAX; // 找不到时返回最大值
         }
+        uint32_t GetLastEnabledPeriodicTriggerID() const {
+            for (int i = static_cast<int>(periodicTriggerEntries.size()) - 1; i >= 0; --i) {
+                if (periodicTriggerEntries[i].enabled) {
+                    return static_cast<uint32_t>(i);
+                }
+            }
+            return UINT32_MAX; // 找不到时返回最大值
+        }
     };
 
     // ========== Tab类型枚举 ==========

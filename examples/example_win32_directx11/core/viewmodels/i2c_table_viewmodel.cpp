@@ -935,7 +935,8 @@ namespace I2CDebugger {
                     }
                 }
 
-                if (packet.commandId >= group.periodicTriggerEntries.size() - 1) {
+                uint32_t last_enabled_ID = group.GetLastEnabledPeriodicTriggerID();
+                if (last_enabled_ID != UINT32_MAX && packet.commandId >= last_enabled_ID) {
                     // 新增：记录日志
                     if (m_dataLogger->IsActive()) {
                         m_dataLogger->LogPeriodicRow(group.periodicTriggerEntries);
