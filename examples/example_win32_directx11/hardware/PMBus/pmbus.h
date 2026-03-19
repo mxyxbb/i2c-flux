@@ -15,6 +15,8 @@
 #include <windows.h> // 需要用到 WINAPI 类型
 #include "../SMBus/CH347/CH347DLL.H"
 
+#include "../SMBus/NI8451/ni845x.h"
+
 // 定义默认配置参数
 constexpr uint32_t DEFAULT_BITRATE = 100000;  // 100kHz
 constexpr uint8_t  DEFAULT_SLAVE_ADDR = 0x02; // 8-bit
@@ -28,6 +30,7 @@ constexpr uint32_t DEFAULT_RESPONSE_TIMEOUT = 100;
 constexpr INT SLAVE_NOT_RESPONSE = -1;
 constexpr INT DEVICE_NOT_CONNECTED = -2;
 constexpr INT CRC_ERROR_CODE = -3;
+constexpr INT UNKNOWN_ERROR____ = -4;
 
 class PMBus {
 public:
@@ -38,7 +41,8 @@ public:
         MODE_NONE,
         MODE_SMBUS,
         MODE_SERIAL,
-        MODE_CH347T // --- 【新增集成】CH347T 工作模式 ---
+        MODE_CH347T, // CH347T 工作模式
+        MODE_NI845X // NI-845x 模式
     };
     DeviceMode GetDeviceMode() const;
 
@@ -79,8 +83,12 @@ private:
     serial::Serial serialPort_;
     RPI2C::Protocol protocolParser_;
 
-    // --- 【新增集成】CH347T 模式相关 ---
+    // CH347T 
     ULONG ch347DeviceIndex_{ 0 }; // 默认操作第0个CH347设备
+
+    // NI-845x 的句柄
+    NiHandle niDevice_ = 0;
+    NiHandle niI2cConf_ = 0;
 
     // 内部辅助函数：执行单条串口命令
     bool executeSerialCommand(const std::vector<uint8_t>& tx_data, RPI2C::Packet& rx_packet, int timeout_ms = 100);

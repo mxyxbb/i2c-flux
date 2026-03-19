@@ -122,7 +122,31 @@ bool PMBus::Open(char** deviceName) {
         return true;
     }
 
-    // --- 3. 尝试 Serial 扫描 ---
+    // 3. [新增] 尝试 NI-845x 模式
+    char niFirstDevice[260];
+    uInt32 numNiDevices = 0;
+    if (ni845xFindDevice(niFirstDevice, NULL, &numNiDevices) == 0 && numNiDevices > 0) {
+        if (ni845xOpen(niFirstDevice, &niDevice_) == 0) {
+            // 设置默认 3.3V 电平 (8451 支持此配置)
+            ni845xSetIoVoltageLevel(niDevice_, kNi845x33Volts);
+
+            // 创建 I2C 配置引用
+            if (ni845xI2cConfigurationOpen(&niI2cConf_) == 0) {
+                currentMode_ = DeviceMode::MODE_NI845X;
+                if (deviceName) {
+                    *deviceName = strdup(niFirstDevice);
+                }
+                return true;
+            }
+            // 失败则清理并继续寻找串口
+            ni845xClose(niDevice_);
+            niDevice_ = 0;
+        }
+    }
+
+    lastError_ += " NI-845x not found. Attempting Serial scan...";
+
+    // --- 4. 尝试 Serial 扫描 ---
     lastError_ = "SMBus/CH347 Open failed. Attempting Serial scan...";
     std::vector<serial::PortInfo> ports = serial::list_ports();
     if (ports.empty()) return false;
@@ -181,6 +205,16 @@ void PMBus::Close() {
     }
     else if (currentMode_ == DeviceMode::MODE_CH347T) {
         CH347CloseDevice(ch347DeviceIndex_);
+    }// NI-845x 清理逻辑
+    else if (currentMode_ == DeviceMode::MODE_NI845X) {
+        if (niI2cConf_ != 0) {
+            ni845xI2cConfigurationClose(niI2cConf_);
+            niI2cConf_ = 0;
+        }
+        if (niDevice_ != 0) {
+            ni845xClose(niDevice_);
+            niDevice_ = 0;
+        }
     }
     currentMode_ = DeviceMode::MODE_NONE;
 }
@@ -227,6 +261,17 @@ bool PMBus::Configure(uint32_t bitrate) {
 
         lastError_ = "CH347T I2C Configure failed.";
         return false;
+    }// [新增] NI-845x 配置逻辑
+    else if (currentMode_ == DeviceMode::MODE_NI845X) {
+        uInt16 khz = static_cast<uInt16>(bitrate / 1000);
+        if (khz == 0) khz = 100; // 默认给 100kHz 保底
+
+        int32 niErr = ni845xI2cConfigurationSetClockRate(niI2cConf_, khz);
+        if (niErr != 0) {
+            lastError_ = "NI845x Clock Rate config failed: " + std::to_string(niErr);
+            return false;
+        }
+        return true;
     }
     lastError_ = "Device not open";
     return false;
@@ -348,6 +393,25 @@ INT PMBus::Write(uint8_t slaveAddress, uint8_t regAddr, const std::vector<uint8_
         }
         lastError_ = "CH347T Write NACK or failed.";
         return SLAVE_NOT_RESPONSE;
+    }// NI-845x 写i2c逻辑
+    else if (currentMode_ == DeviceMode::MODE_NI845X) {
+        // 配置 7-bit 设备地址 (NI 自动处理左移)
+        ni845xI2cConfigurationSetAddress(niI2cConf_, slaveAddress);
+
+        // 合并寄存器地址和数据负载
+        std::vector<uint8_t> buffer;
+        buffer.push_back(regAddr);
+        buffer.insert(buffer.end(), actual_data.begin(), actual_data.end());
+
+        int32 niErr = ni845xI2cWrite(niDevice_, niI2cConf_, static_cast<uInt32>(buffer.size()), buffer.data());
+
+        if (niErr != 0) {
+            char errMsg[1024];
+            ni845xStatusToString(niErr, 1024, errMsg);
+            lastError_ = "NI845x Write Error: " + std::string(errMsg);
+            return (niErr == kNi845xErrorMasterAddressNotAcknowledged) ? SLAVE_NOT_RESPONSE : UNKNOWN_ERROR____;
+        }
+        return 0; // 成功
     }
     else {
         std::vector<uint8_t> payload = { regAddr };
@@ -415,6 +479,31 @@ INT PMBus::Read(uint8_t slaveAddress, uint8_t regAddr, uint16_t numBytes, std::v
         }
         lastError_ = "CH347T Read NACK or failed.";
         return SLAVE_NOT_RESPONSE;
+    }// [新增] NI-845x 复合读写逻辑
+    else if (currentMode_ == DeviceMode::MODE_NI845X) {
+        ni845xI2cConfigurationSetAddress(niI2cConf_, slaveAddress);
+        std::vector<uint8_t> temp_result(actual_numBytes);
+        uInt32 bytesRead = 0;
+
+        // I2cWriteRead 能够发送寄存器地址后触发 Repeated Start 读取数据，完全符合 PMBus 需求
+        int32 niErr = ni845xI2cWriteRead(niDevice_, niI2cConf_, 1, &regAddr, actual_numBytes, &bytesRead, temp_result.data());
+
+        if (niErr != 0 || bytesRead != actual_numBytes) {
+            char errMsg[1024];
+            ni845xStatusToString(niErr, 1024, errMsg);
+            lastError_ = "NI845x Read Error: " + std::string(errMsg);
+            return (niErr == kNi845xErrorMasterAddressNotAcknowledged) ? SLAVE_NOT_RESPONSE : UNKNOWN_ERROR____;
+        }
+
+        if (crcEnabled_) {
+            std::vector<uint8_t> header = { static_cast<uint8_t>((slaveAddress << 1) & 0xFE), regAddr, static_cast<uint8_t>((slaveAddress << 1) | 1) };
+            bool crcOk = VerifyPacketCrc(temp_result, header, crcType_);
+            if (temp_result.size() >= static_cast<size_t>(crcLen)) { temp_result.erase(temp_result.end() - crcLen, temp_result.end()); }
+            result = temp_result;
+            if (!crcOk) { lastError_ = "NI-845x Read CRC Error."; return CRC_ERROR_CODE; }
+        }
+        else { result = temp_result; }
+        return 0; // 成功
     }
     else {
         std::vector<uint8_t> target_reg = { regAddr };
@@ -472,6 +561,17 @@ INT PMBus::SendByte(uint8_t slaveAddress, uint8_t byte) {
         }
         lastError_ = "CH347T SendByte NACK.";
         return SLAVE_NOT_RESPONSE;
+    }// [新增] NI-845x 发送单字节逻辑
+    else if (currentMode_ == DeviceMode::MODE_NI845X) {
+        ni845xI2cConfigurationSetAddress(niI2cConf_, slaveAddress);
+        int32 niErr = ni845xI2cWrite(niDevice_, niI2cConf_, static_cast<uInt32>(actual_data.size()), actual_data.data());
+        if (niErr != 0) {
+            char errMsg[1024];
+            ni845xStatusToString(niErr, 1024, errMsg);
+            lastError_ = "NI845x Write Error: " + std::string(errMsg);
+            return (niErr == kNi845xErrorMasterAddressNotAcknowledged) ? SLAVE_NOT_RESPONSE : UNKNOWN_ERROR____;
+        }
+        return 0;
     }
     else {
         std::vector<uint8_t> tx_data = RPI2C::Protocol::packWrite(slaveAddress, actual_data);
@@ -513,6 +613,20 @@ INT PMBus::ScanDevices(uint8_t startAddr, uint8_t endAddr, std::vector<uint8_t>&
                 if (ackCount > 0) {
                     foundAddresses.push_back(addr);
                 }
+            }
+        }
+        return 0;
+    }// [新增] NI-845x 总线扫描逻辑
+    else if (currentMode_ == DeviceMode::MODE_NI845X) {
+        for (uint8_t addr = startAddr; addr <= endAddr; ++addr) {
+            ni845xI2cConfigurationSetAddress(niI2cConf_, addr);
+
+            // 通过发起写入请求来侦测 ACK
+            int32 niErr = ni845xI2cWrite(niDevice_, niI2cConf_, 0, NULL);
+
+            // kNi845xErrorMasterAddressNotAcknowledged 代表设备未响应
+            if (niErr == kNi845xErrorNoError) {
+                foundAddresses.push_back(addr);
             }
         }
         return 0;
