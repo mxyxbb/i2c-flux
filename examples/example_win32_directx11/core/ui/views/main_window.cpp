@@ -38,7 +38,7 @@ namespace I2CDebugger {
 
             // 软件名称和版本号 (稍微放大或加粗字体，如果没有加载多字体这里就是普通文本)
             ImGui::Text("软件名称: I2C Flux");
-            ImGui::Text("版本号: v1.1.0 (Develop)");
+            ImGui::Text("版本号: v1.3.0 (Develop)");
 
             ImGui::Separator(); // 画一条分割线
 
