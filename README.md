@@ -1,6 +1,11 @@
 ## I2C-Flux
 本软件是I2C接口的上位机控制软件，用于I2C/SMBus/PMBus的通信调试  
-适配了两款USB-I2C接口：CP2112接口，以及自己写的RPI2C接口  
+适配了四款USB-I2C接口：
+1. CH347T-I2C接口
+2. CP2112接口
+3. NI-845x接口
+4. 自己写的RPI2C接口
+
 软件包内容如下，解压到单独文件夹中运行i2c_flux.exe即可  
 download：[release](https://github.com/mxyxbb/i2c-flux/releases/tag/basic)  
 <img width="746" height="148" alt="image" src="https://github.com/user-attachments/assets/570ea0c0-9349-4b86-99ac-3b636e0f7de8" />
