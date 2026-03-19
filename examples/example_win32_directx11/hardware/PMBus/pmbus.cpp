@@ -344,7 +344,7 @@ INT PMBus::Write(uint8_t slaveAddress, uint8_t regAddr, const std::vector<uint8_
         ULONG ackCount = 0;
         // 替换为 Demo 推荐的 RetACK 版本
         if (CH347StreamI2C_RetACK(ch347DeviceIndex_, buffer.size(), buffer.data(), 0, nullptr, &ackCount)) {
-            if (ackCount > 0) return 0; // 只要有 ACK 就认为通讯链路没断
+            if (ackCount == buffer.size()) return 0; //ACK 要等于字节数
         }
         lastError_ = "CH347T Write NACK or failed.";
         return SLAVE_NOT_RESPONSE;
@@ -400,7 +400,8 @@ INT PMBus::Read(uint8_t slaveAddress, uint8_t regAddr, uint16_t numBytes, std::v
 
         // 替换为带 ACK 检验的函数
         if (CH347StreamI2C_RetACK(ch347DeviceIndex_, writeBuf.size(), writeBuf.data(), actual_numBytes, temp_result.data(), &ackCount)) {
-            if (ackCount > 0) {
+            if (ackCount == writeBuf.size()+1) // writeBuf.size()是包含1个地址和n个数据，实际读取时会发1次地址写和1次地址读，故ack数为writeBuf.size()+1
+            {
                 if (crcEnabled_) {
                     std::vector<uint8_t> header = { static_cast<uint8_t>((slaveAddress << 1) & 0xFE), regAddr, static_cast<uint8_t>((slaveAddress << 1) | 1) };
                     bool crcOk = VerifyPacketCrc(temp_result, header, crcType_);
@@ -467,7 +468,7 @@ INT PMBus::SendByte(uint8_t slaveAddress, uint8_t byte) {
 
         ULONG ackCount = 0;
         if (CH347StreamI2C_RetACK(ch347DeviceIndex_, writeBuf.size(), writeBuf.data(), 0, nullptr, &ackCount)) {
-            if (ackCount > 0) return 0;
+            if (ackCount == writeBuf.size()) return 0;
         }
         lastError_ = "CH347T SendByte NACK.";
         return SLAVE_NOT_RESPONSE;
@@ -504,7 +505,7 @@ INT PMBus::ScanDevices(uint8_t startAddr, uint8_t endAddr, std::vector<uint8_t>&
         return ret;
     }
     else if (currentMode_ == DeviceMode::MODE_CH347T) {
-        // 参考 Demo 中的扫描逻辑
+        // 参考 Demo 中的扫描逻辑 https://github.com/mxyxbb/ch347t_i2c_test
         for (uint8_t addr = startAddr; addr <= endAddr; ++addr) {
             uint8_t writeAddrByte = (addr << 1);
             ULONG ackCount = 0;
