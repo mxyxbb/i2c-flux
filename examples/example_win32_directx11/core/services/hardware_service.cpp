@@ -870,6 +870,11 @@ namespace I2CDebugger {
     }
 
     void HardwareService::EnableBatchMode(bool enable) {
+
+        if(m_pmbus.GetDeviceMode() != PMBus::DeviceMode::MODE_SERIAL) {
+            // 仅 Serial 模式支持 Batch 批处理
+            return;
+        }
         m_useBatchMode = enable;
     }
 

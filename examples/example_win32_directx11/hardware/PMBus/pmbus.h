@@ -12,12 +12,15 @@
 #include "core/serial/include/serial/serial.h" 
 #include "../SMBus/RPI2C/RPI2C.h"
 
+#include <windows.h> // 需要用到 WINAPI 类型
+#include "../SMBus/CH347/CH347DLL.H"
+
 // 定义默认配置参数
 constexpr uint32_t DEFAULT_BITRATE = 100000;  // 100kHz
 constexpr uint8_t  DEFAULT_SLAVE_ADDR = 0x02; // 8-bit
 constexpr bool     DEFAULT_AUTO_READ_RESPOND = false;
-constexpr uint16_t DEFAULT_WRITE_TIMEOUT = 10;
-constexpr uint16_t DEFAULT_READ_TIMEOUT = 10;
+constexpr uint16_t DEFAULT_WRITE_TIMEOUT_CP2112 = 10;
+constexpr uint16_t DEFAULT_READ_TIMEOUT_CP2112 = 10;
 constexpr bool     DEFAULT_SCL_LOW_TIMEOUT = true;
 constexpr uint16_t DEFAULT_TRANSFER_RETRIES = 1;
 constexpr uint32_t DEFAULT_RESPONSE_TIMEOUT = 100;
@@ -30,6 +33,14 @@ class PMBus {
 public:
     PMBus();
     ~PMBus();
+
+    enum class DeviceMode {
+        MODE_NONE,
+        MODE_SMBUS,
+        MODE_SERIAL,
+        MODE_CH347T // --- 【新增集成】CH347T 工作模式 ---
+    };
+    DeviceMode GetDeviceMode() const;
 
     bool Open(char** deviceName);
     void Close();
@@ -56,11 +67,7 @@ public:
     int GetCrcType() const { return crcType_; }
 
 private:
-    enum class DeviceMode {
-        MODE_NONE,
-        MODE_SMBUS,
-        MODE_SERIAL
-    };
+
 
     DeviceMode currentMode_{ DeviceMode::MODE_NONE };
     std::string lastError_;
@@ -71,6 +78,9 @@ private:
     // Serial 模式相关
     serial::Serial serialPort_;
     RPI2C::Protocol protocolParser_;
+
+    // --- 【新增集成】CH347T 模式相关 ---
+    ULONG ch347DeviceIndex_{ 0 }; // 默认操作第0个CH347设备
 
     // 内部辅助函数：执行单条串口命令
     bool executeSerialCommand(const std::vector<uint8_t>& tx_data, RPI2C::Packet& rx_packet, int timeout_ms = 100);
