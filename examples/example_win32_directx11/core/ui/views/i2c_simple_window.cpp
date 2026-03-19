@@ -90,7 +90,7 @@ void I2CSimpleWindow::RenderDeviceConnection()
         if (ImGui::Button("连接设备", ImVec2(100, 0))) {
             m_viewModel->Connect();
         }
-        RenderTooltip("自动扫描CP2112或RPI2C");
+        RenderTooltip("点击后自动扫描设备:\n\r1. CH347T\n\r2. CP2112\n\r3. NI-845x\n\r4. RPI2C");
     }
     
     // 连接状态
