@@ -97,7 +97,8 @@
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y /d  "$(ProjectDir)hardware\SMBus\CP2112\x86\*.dll" "$(OutDir)"
-xcopy /y /d  "$(ProjectDir)hardware\SMBus\CH347\x86\*.DLL" "$(OutDir)"</Command>
+xcopy /y /d  "$(ProjectDir)hardware\SMBus\CH347\x86\*.DLL" "$(OutDir)"
+xcopy /y /d  "$(ProjectDir)hardware\SMBus\NI8451\x86\*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -137,7 +138,8 @@ xcopy /y /d  "$(ProjectDir)hardware\SMBus\CH347\x86\*.DLL" "$(OutDir)"</Command>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y /d  "$(ProjectDir)hardware\SMBus\CP2112\x86\*.dll" "$(OutDir)"
-xcopy /y /d  "$(ProjectDir)hardware\SMBus\CH347\x86\*.DLL" "$(OutDir)"</Command>
+xcopy /y /d  "$(ProjectDir)hardware\SMBus\CH347\x86\*.DLL" "$(OutDir)"
+xcopy /y /d  "$(ProjectDir)hardware\SMBus\NI8451\x86\*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
