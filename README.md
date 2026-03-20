@@ -4,7 +4,7 @@
 1. CH347T-I2C接口
 2. CP2112接口
 3. NI-845x接口
-4. 自己写的RPI2C接口
+4. 自己写的RPI2C接口[link](https://github.com/mxyxbb/RP2040-I2C-USB-Adaptor)  
 
 软件包内容如下，解压到单独文件夹中运行i2c_flux.exe即可  
 软件若无法运行，请安装[Visual C++ Redistributable(x86)](https://aka.ms/vc14/vc_redist.x86.exe)  
