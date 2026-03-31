@@ -4,11 +4,13 @@
 1. CH347T-I2C接口
 2. CP2112接口
 3. NI-845x接口
-4. 自己写的RPI2C接口
+4. 自己写的RPI2C接口[link](https://github.com/mxyxbb/RP2040-I2C-USB-Adaptor)  
 
 软件包内容如下，解压到单独文件夹中运行i2c_flux.exe即可  
-download：[release](https://github.com/mxyxbb/i2c-flux/releases/tag/basic)  
-<img width="746" height="148" alt="image" src="https://github.com/user-attachments/assets/570ea0c0-9349-4b86-99ac-3b636e0f7de8" />
+软件若无法运行，请安装[Visual C++ Redistributable(x86)](https://aka.ms/vc14/vc_redist.x86.exe)  
+download：[release](https://github.com/mxyxbb/i2c-flux/releases)  
+<img width="761" height="249" alt="image" src="https://github.com/user-attachments/assets/32ecf2cf-b965-4f2b-89e5-c001c5a3dc0b" />  
+
 ## 1. 接线说明  
 ##### 使用CP2112接口：  
   1. 测试板正常上电  
