@@ -31,7 +31,7 @@ namespace I2CDebugger {
         ~ExpressionParser();
 
         // 使用读取公式将原始字节转换为十进制值
-        // formula: 公式字符串，例如 "(b1 << 8) | b0"
+        // formula: 公式字符串，例如 "bor(shl(b1, 8), b0)"  // ===== 修改：原为 "(b1 << 8) | b0" =====
         // rawData: 原始字节数据
         ParseResult EvaluateReadFormula(const std::string& formula,
             const std::vector<uint8_t>& rawData);
@@ -53,7 +53,7 @@ namespace I2CDebugger {
         static std::string GetFormulaHelp();
 
         // ===== 新增 =====
-    // 专门用于处理用户输入为字符串时的写入反算
+        // 专门用于处理用户输入为字符串时的写入反算
         std::vector<uint8_t> EvaluateWriteFormula(const std::string& formula,
             const std::string& strValue, // 接收字符串输入
             size_t byteCount,

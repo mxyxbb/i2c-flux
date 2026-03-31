@@ -1,4 +1,5 @@
 ﻿#include "expression_parser.h"
+#include <regex> // 【新增】：用于正则替换十六进制
 
 // 禁用一些警告，ExprTK 头文件较大
 #ifdef _MSC_VER
@@ -12,10 +13,92 @@
 #pragma warning(pop)
 #endif
 
+// ==========================================
+// 【新增】：自定义位运算与预处理函数
+// ==========================================
+namespace {
+    struct BitwiseAnd : public exprtk::ifunction<double> {
+        BitwiseAnd() : exprtk::ifunction<double>(2) {}
+        inline double operator()(const double& v1, const double& v2) {
+            return static_cast<double>(static_cast<uint64_t>(v1) & static_cast<uint64_t>(v2));
+        }
+    };
+    struct BitwiseOr : public exprtk::ifunction<double> {
+        BitwiseOr() : exprtk::ifunction<double>(2) {}
+        inline double operator()(const double& v1, const double& v2) {
+            return static_cast<double>(static_cast<uint64_t>(v1) | static_cast<uint64_t>(v2));
+        }
+    };
+    struct BitwiseXor : public exprtk::ifunction<double> {
+        BitwiseXor() : exprtk::ifunction<double>(2) {}
+        inline double operator()(const double& v1, const double& v2) {
+            return static_cast<double>(static_cast<uint64_t>(v1) ^ static_cast<uint64_t>(v2));
+        }
+    };
+    struct BitwiseNot : public exprtk::ifunction<double> {
+        BitwiseNot() : exprtk::ifunction<double>(1) {}
+        inline double operator()(const double& v) {
+            return static_cast<double>(~static_cast<uint64_t>(v));
+        }
+    };
+    struct ShiftLeft : public exprtk::ifunction<double> {
+        ShiftLeft() : exprtk::ifunction<double>(2) {}
+        inline double operator()(const double& v1, const double& v2) {
+            return static_cast<double>(static_cast<uint64_t>(v1) << static_cast<uint64_t>(v2));
+        }
+    };
+    struct ShiftRight : public exprtk::ifunction<double> {
+        ShiftRight() : exprtk::ifunction<double>(2) {}
+        inline double operator()(const double& v1, const double& v2) {
+            return static_cast<double>(static_cast<uint64_t>(v1) >> static_cast<uint64_t>(v2));
+        }
+    };
+
+    void RegisterBitwiseFunctions(exprtk::symbol_table<double>& symbolTable) {
+        static BitwiseAnd op_and;
+        static BitwiseOr  op_or;
+        static BitwiseXor op_xor;
+        static BitwiseNot op_not;
+        static ShiftLeft  op_shl;
+        static ShiftRight op_shr;
+
+        symbolTable.add_function("band", op_and);
+        symbolTable.add_function("bor", op_or);
+        symbolTable.add_function("bxor", op_xor);
+        symbolTable.add_function("bnot", op_not);
+        symbolTable.add_function("shl", op_shl);
+        symbolTable.add_function("shr", op_shr);
+    }
+
+    // 【新增】：预处理公式，将 0x 或 0X 开头的十六进制数替换为十进制字符串
+    std::string PreprocessHex(const std::string& formula) {
+        // \b 确保只匹配独立的数值，不会误伤名为 x0xA 的变量名
+        std::regex hex_regex(R"(\b0[xX][0-9a-fA-F]+\b)");
+        std::smatch match;
+        std::string result;
+        std::string::const_iterator searchStart(formula.cbegin());
+
+        while (std::regex_search(searchStart, formula.cend(), match, hex_regex)) {
+            result += match.prefix();
+            try {
+                // 将截获到的 16 进制字符串转为标准的 10 进制无符号数
+                unsigned long long val = std::stoull(match.str(), nullptr, 16);
+                result += std::to_string(val);
+            }
+            catch (...) {
+                // 如果发生越界等异常，原样保留以交由后续报错
+                result += match.str();
+            }
+            searchStart = match.suffix().first;
+        }
+        result += std::string(searchStart, formula.cend());
+        return result;
+    }
+}
+
 namespace I2CDebugger {
 
     ExpressionParser::ExpressionParser() {
-        // 初始化变量数组
         for (int i = 0; i < 32; ++i) m_bytes[i] = 0;
         for (int i = 0; i < 16; ++i) m_words[i] = 0;
     }
@@ -23,16 +106,13 @@ namespace I2CDebugger {
     ExpressionParser::~ExpressionParser() = default;
 
     void ExpressionParser::SetByteVariables(const std::vector<uint8_t>& rawData) {
-        // 清零
         for (int i = 0; i < 32; ++i) m_bytes[i] = 0;
         for (int i = 0; i < 16; ++i) m_words[i] = 0;
 
-        // 设置字节变量
         for (size_t i = 0; i < rawData.size() && i < 32; ++i) {
             m_bytes[i] = static_cast<double>(rawData[i]);
         }
 
-        // 设置小端字变量 w0 = (b1 << 8) | b0
         for (size_t i = 0; i < 16 && (i * 2 + 1) < rawData.size(); ++i) {
             m_words[i] = static_cast<double>((rawData[i * 2 + 1] << 8) | rawData[i * 2]);
         }
@@ -52,14 +132,11 @@ namespace I2CDebugger {
             return result;
         }
 
-        // ==========================================
-        // 【新增】：字符串解析模式
-        // ==========================================
         if (formula == "str" || formula == "string") {
             result.isString = true;
             std::string parsedStr;
             for (uint8_t byte : rawData) {
-                if (byte == 0x00) break; // 遇到字符串结束符 \0 停止
+                if (byte == 0x00) break;
                 parsedStr.push_back(static_cast<char>(byte));
             }
             result.stringValue = parsedStr;
@@ -67,46 +144,41 @@ namespace I2CDebugger {
             return result;
         }
 
-        // 设置字节变量
         SetByteVariables(rawData);
 
-        // 创建符号表
         exprtk::symbol_table<double> symbolTable;
+        RegisterBitwiseFunctions(symbolTable);
 
-        // 注册字节变量 b0-b31
         for (int i = 0; i < 32; ++i) {
             std::string varName = "b" + std::to_string(i);
             symbolTable.add_variable(varName, m_bytes[i]);
         }
 
-        // 注册小端字变量 w0-w15
         for (int i = 0; i < 16; ++i) {
             std::string varName = "w" + std::to_string(i);
             symbolTable.add_variable(varName, m_words[i]);
         }
 
-        // 添加常用常量和函数
         symbolTable.add_constants();
 
-        // 创建表达式
         exprtk::expression<double> expression;
         expression.register_symbol_table(symbolTable);
 
-        // 解析公式
+        // 【新增】：在编译前过滤掉十六进制字符
+        std::string processedFormula = PreprocessHex(formula);
+
         exprtk::parser<double> parser;
-        if (!parser.compile(formula, expression)) {
+        if (!parser.compile(processedFormula, expression)) {
             result.errorMsg = "公式解析错误: " + parser.error();
             return result;
         }
 
-        // 计算结果
         result.value = expression.value();
         result.isString = false;
         result.success = true;
         return result;
     }
 
-    // 数值写入模式（原有函数保持不变）
     std::vector<uint8_t> ExpressionParser::EvaluateWriteFormula(const std::string& formula,
         double value,
         size_t byteCount,
@@ -116,7 +188,6 @@ namespace I2CDebugger {
         success = false;
 
         if (formula.empty()) {
-            // 默认行为：直接将值转换为字节（小端序）
             int64_t intValue = static_cast<int64_t>(value);
             for (size_t i = 0; i < byteCount; ++i) {
                 result.push_back(static_cast<uint8_t>((intValue >> (i * 8)) & 0xFF));
@@ -125,35 +196,34 @@ namespace I2CDebugger {
             return result;
         }
 
-        // 防御：如果是 str 模式，但误调了 double 接口
         if (formula == "str" || formula == "string") {
             errorMsg = "字符串模式不支持数值输入";
             return result;
         }
 
-        // 创建符号表
         exprtk::symbol_table<double> symbolTable;
+        RegisterBitwiseFunctions(symbolTable);
+
         m_value = value;
         symbolTable.add_variable("value", m_value);
-        symbolTable.add_variable("v", m_value);  // 简写
+        symbolTable.add_variable("v", m_value);
         symbolTable.add_constants();
 
-        // 创建表达式
         exprtk::expression<double> expression;
         expression.register_symbol_table(symbolTable);
 
-        // 解析公式
+        // 【新增】：在编译前过滤掉十六进制字符
+        std::string processedFormula = PreprocessHex(formula);
+
         exprtk::parser<double> parser;
-        if (!parser.compile(formula, expression)) {
+        if (!parser.compile(processedFormula, expression)) {
             errorMsg = "公式解析错误: " + parser.error();
             return result;
         }
 
-        // 计算结果
         double rawValue = expression.value();
         int64_t intValue = static_cast<int64_t>(rawValue);
 
-        // 转换为字节数组（小端序）
         for (size_t i = 0; i < byteCount; ++i) {
             result.push_back(static_cast<uint8_t>((intValue >> (i * 8)) & 0xFF));
         }
@@ -162,10 +232,6 @@ namespace I2CDebugger {
         return result;
     }
 
-    // ==========================================
-    // 【新增】：字符串写入模式重载
-    // 专门用于处理 string -> Raw Bytes 的转换
-    // ==========================================
     std::vector<uint8_t> ExpressionParser::EvaluateWriteFormula(const std::string& formula,
         const std::string& strValue,
         size_t byteCount,
@@ -180,14 +246,13 @@ namespace I2CDebugger {
                     result.push_back(static_cast<uint8_t>(strValue[i]));
                 }
                 else {
-                    result.push_back(0x00); // 如果目标长度大于字符串长度，补 0
+                    result.push_back(0x00);
                 }
             }
             success = true;
             return result;
         }
 
-        // 如果并非 str 模式但调用了此接口，尝试将字符串转为 double 交给原函数处理
         try {
             double numValue = std::stod(strValue);
             return EvaluateWriteFormula(formula, numValue, byteCount, success, errorMsg);
@@ -204,13 +269,12 @@ namespace I2CDebugger {
             return false;
         }
 
-        // 【新增】：支持 str 常规校验
         if (formula == "str" || formula == "string") {
             return true;
         }
 
-        // 创建符号表，添加所有可能的变量
         exprtk::symbol_table<double> symbolTable;
+        RegisterBitwiseFunctions(symbolTable);
 
         double dummyBytes[32] = { 0 };
         double dummyWords[16] = { 0 };
@@ -229,8 +293,11 @@ namespace I2CDebugger {
         exprtk::expression<double> expression;
         expression.register_symbol_table(symbolTable);
 
+        // 【新增】：在编译前过滤掉十六进制字符
+        std::string processedFormula = PreprocessHex(formula);
+
         exprtk::parser<double> parser;
-        if (!parser.compile(formula, expression)) {
+        if (!parser.compile(processedFormula, expression)) {
             errorMsg = parser.error();
             return false;
         }
@@ -249,17 +316,29 @@ namespace I2CDebugger {
             "  value 或 v    : 输入的十进制解析值\n"
             "\n"
             "特殊公式:\n"
-            "  str   : 将数据视为ASCII字符串进行解析或写入\n" // 【新增】说明
+            "  str   : 将数据视为ASCII字符串进行解析或写入\n"
+            "\n"
+            "=== 位运算与扩展函数 ===\n"
+            "ExprTK 解析器支持以下函数运算，且原生支持 0x 十六进制语法：\n"
+            "  band(a, b) : 按位与 (a & b)\n"
+            "  bor(a, b)  : 按位或 (a | b)\n"
+            "  bxor(a, b) : 按位异或 (a ^ b)\n"
+            "  bnot(a)    : 按位取反 (~a)\n"
+            "  shl(a, b)  : 左移 (a << b)\n"
+            "  shr(a, b)  : 右移 (a >> b)\n"
             "\n"
             "=== 公式示例 ===\n"
             "读取公式:\n"
-            "  w0        : 2字节小端转整数\n"
-            "  w0/32     : 2字节小端Q5转整数\n"
-            "  str       : 解析为文本字符串\n" // 【新增】示例
+            "  w0                  : 2字节小端转整数\n"
+            "  w0/32               : 2字节小端Q5转整数\n"
+            "  bor(shl(b1,8), b0)  : 相当于 (b1 << 8) | b0\n"
+            "  band(b0, 0x7F)      : 屏蔽 b0 的最高位 (支持0x格式)\n"
+            "  str                 : 解析为文本字符串\n"
             "\n"
             "写入公式:\n"
-            "  v * 100   : 输入值乘以100\n"
-            "  str       : 直接写入ASCII字符\n";
+            "  v * 100             : 输入值乘以100\n"
+            "  band(v, 0xFF)       : 取输入的低8位\n"
+            "  str                 : 直接写入ASCII字符\n";
     }
 
 }
