@@ -891,7 +891,8 @@ namespace I2CDebugger {
                 auto& entry = group.singleTriggerEntries[packet.commandId];
                 entry.lastSuccess = packet.success;
                 entry.lastErrorType = packet.errorType;
-                entry.data = packet.rawData;
+                if(entry.type == CommandType::Read)
+                    entry.data = packet.rawData;
                 if (packet.success && !packet.rawData.empty()) {
                     entry.lastError.clear();
 
@@ -915,7 +916,8 @@ namespace I2CDebugger {
                 auto& entry = group.periodicTriggerEntries[packet.commandId];
                 entry.lastSuccess = packet.success;
                 entry.lastErrorType = packet.errorType;
-                entry.data = packet.rawData;
+                if (entry.type == CommandType::Read)
+                    entry.data = packet.rawData;
                 if (!packet.rawData.empty()) {
                     entry.lastError.clear();
 
