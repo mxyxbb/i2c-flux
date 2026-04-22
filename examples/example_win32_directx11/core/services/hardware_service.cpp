@@ -761,22 +761,27 @@ namespace I2CDebugger {
                 m_pmbus.FlushOff();
             }
 
+            // 【修改点】：新增一个独立的索引 flushIndex 用于正确映射 flushRet 里的返回值
+            size_t flushIndex = 0;
             for (size_t i = 0; i < m_periodicEntries.size() && m_periodicRunning && m_isConnected; i++) {
                 const auto& entry = m_periodicEntries[i];
                 if (!entry.enabled) continue;
 
                 ResponsePacket packet;
                 packet.controlId = 3;
-                packet.commandId = static_cast<uint32_t>(i);
+                packet.commandId = static_cast<uint32_t>(i); // commandId 仍保留原始索引，方便外部对应条目
                 packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now().time_since_epoch()).count();
 
-                int ret = (i < flushRet.size()) ? flushRet[i] : SLAVE_NOT_RESPONSE;
+                // 【修改点】：使用 flushIndex 来访问，访问后 flushIndex 自增
+                int ret = (flushIndex < flushRet.size()) ? flushRet[flushIndex] : SLAVE_NOT_RESPONSE;
+                flushIndex++;
+
                 packet.success = (ret >= 0);
                 packet.errorType = GetErrorType(ret);
 
                 if (entry.type == CommandType::Read) {
-                    packet.rawData = batchResults[i]; // 始终保留数据
+                    packet.rawData = batchResults[i]; // batchResults 是按照 m_periodicEntries.size() 初始化的，所以用 i 访问是正确的
                     if (ret == CRC_ERROR_CODE) {
                         packet.errorMsg = "CRC校验错误";
                     }
@@ -797,6 +802,7 @@ namespace I2CDebugger {
             }
         }
         else {
+            // ... (非批量模式代码保持不变) ...
             for (size_t i = 0; i < m_periodicEntries.size() && m_periodicRunning && m_isConnected; i++) {
                 ProcessPriorityTasks();
                 if (!m_isConnected || !m_periodicRunning) break;
