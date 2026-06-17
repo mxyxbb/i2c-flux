@@ -63,41 +63,69 @@ void I2CSimpleWindow::Render(bool* p_open)
 void I2CSimpleWindow::RenderDeviceConnection()
 {
     auto& data = m_viewModel->GetData();
-    
+
     ImGui::Text("设备连接");
     ImGui::Spacing();
-    
+
     // 设备名称
     ImGui::Text("设备: %s", data.deviceName.empty() ? "未连接" : data.deviceName.c_str());
-    
-    // 波特率选择
+
+    // 波特率选择（以 K 为单位输入，内部显示K）
     ImGui::Text("波特率:");
     ImGui::SameLine();
-    const char* baudItems[] = { "100K", "400K" };
-    int baudIndex = (data.baudRate == BAUD_RATE_400K) ? 1 : 0;
-    ImGui::SetNextItemWidth(100);
-    if (ImGui::Combo("##Baud", &baudIndex, baudItems, 2)) {
-        data.baudRate = (baudIndex == 1) ? BAUD_RATE_400K : BAUD_RATE_100K;
+
+    // 1. 创建临时变量，将 Hz 转换为 kHz 用于界面操作
+    uint32_t baudRateK = data.baudRate / 1000;
+
+    // 稍微加宽一点，确保能完整显示 "400 K"
+    ImGui::SetNextItemWidth(70);
+
+    // 2. 核心修改：格式化字符串改为 "%u K"。
+    // 这样界面上会显示如 "400 K"，且用户修改数字后，ImGui 依然能正确解析出 400
+    if (ImGui::InputScalar("##BaudInput", ImGuiDataType_U32, &baudRateK, nullptr, nullptr, "%uK")) {
+        // 用户修改后，存回底层时乘以 1000 还原为 Hz
+        data.baudRate = baudRateK * 1000;
     }
-    
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("输入自定义波特率 (kHz)\n直接输入数字即可，'K' 会自动保留");
+    }
+
+    // 3. 紧贴输入框添加下拉箭头按钮
+    ImGui::SameLine(0, 0);
+    if (ImGui::ArrowButton("##BaudPresetsBtn", ImGuiDir_Down)) {
+        ImGui::OpenPopup("BaudPresetsPopup");
+    }
+
+    // 4. 渲染预设选项的弹窗
+    if (ImGui::BeginPopup("BaudPresetsPopup")) {
+        if (ImGui::Selectable("100K"))  data.baudRate = 100000;
+        if (ImGui::Selectable("400K"))  data.baudRate = 400000;
+        if (ImGui::Selectable("1000K (1M)")) data.baudRate = 1000000;
+        ImGui::EndPopup();
+    }
+
     // 连接按钮
+    ImGui::SameLine();
+    ImGui::Dummy(ImVec2(5, 0)); // 加一点间距，防止按钮粘连
     ImGui::SameLine();
     if (data.isConnected) {
         if (ImGui::Button("断开设备", ImVec2(100, 0))) {
             m_viewModel->Disconnect();
         }
-    } else {
+    }
+    else {
         if (ImGui::Button("连接设备", ImVec2(100, 0))) {
             m_viewModel->Connect();
         }
         RenderTooltip("点击后自动扫描设备:\n\r1. CH347T\n\r2. CP2112\n\r3. NI-845x\n\r4. RPI2C");
     }
-    
+
     // 连接状态
     ImGui::SameLine();
     if (data.isConnected) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "已连接");
-    } else {
+    }
+    else {
         ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "未连接");
     }
 }
