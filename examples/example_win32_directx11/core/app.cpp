@@ -62,6 +62,21 @@ namespace I2CDebugger {
                 }
                 m_tableViewModel->GetData().isConnected = success;
                 m_tableViewModel->GetData().deviceName = deviceName;
+
+                // 用户主动断开（或连接失败）也会走此回调且 success=false。
+                // 必须在此复位周期触发按钮及其它进行中的状态，否则正在运行
+                // 周期触发时点击“断开设备”，按钮会卡在“运行中”无法复位。
+                // （硬件异常掉线由 DisconnectCallback 处理，二者保持一致。）
+                if (!success) {
+                    m_tableViewModel->GetData().isPeriodicRunning = false;
+                    m_tableViewModel->GetData().isReadingAllRegisters = false;
+                    m_tableViewModel->GetData().isExecuteAllSingleCommands = false;
+                    m_simpleViewModel->GetData().isScanning = false;
+                    m_simpleViewModel->GetData().isOperating = false;
+                    if (m_plotViewModel) {
+                        m_plotViewModel->SetSystemRunning(false);
+                    }
+                }
             });
 
         // 设备异常断开回调
