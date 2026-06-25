@@ -326,7 +326,8 @@ namespace I2CDebugger {
                 return false;
             }
 
-            file << std::setw(4) << j << std::endl;
+            // 使用 error_handler_t::replace：避免某些字段含非法 UTF-8/特殊字符时序列化崩溃
+            file << j.dump(4, ' ', false, json::error_handler_t::replace) << std::endl;
             return true;
         }
         catch (const std::exception& e) {
@@ -390,7 +391,9 @@ namespace I2CDebugger {
                 return false;
             }
 
-            file << std::setw(4) << j << std::endl;
+            // 使用 error_handler_t::replace：当命令表名称等字段包含非法 UTF-8/特殊字符时，
+            // 用替换字符代替而不是抛异常/中止，避免导出崩溃
+            file << j.dump(4, ' ', false, json::error_handler_t::replace) << std::endl;
             return true;
         }
         catch (const std::exception& e) {

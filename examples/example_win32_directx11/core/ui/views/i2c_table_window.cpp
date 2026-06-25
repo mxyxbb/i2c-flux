@@ -80,17 +80,56 @@ namespace I2CDebugger {
         ImGui::Text("命令表:");
         ImGui::SameLine();
 
-        std::vector<const char*> groupNames;
-        for (const auto& g : data.commandGroups) {
-            groupNames.push_back(g.name.c_str());
-        }
+        const int groupCount = static_cast<int>(data.commandGroups.size());
+        const char* previewName =
+            (data.currentGroupIndex >= 0 && data.currentGroupIndex < groupCount)
+            ? data.commandGroups[data.currentGroupIndex].name.c_str()
+            : "";
 
+        // 使用自定义下拉框（BeginCombo），支持在弹出列表中按住鼠标上下拖动以排序
         ImGui::SetNextItemWidth(250);
-        if (ImGui::Combo("##GroupSelect", &data.currentGroupIndex,
-            groupNames.data(), static_cast<int>(groupNames.size()))) {
-            auto& group = m_viewModel->GetCurrentGroup();
-            std::snprintf(m_slaveAddrInput, sizeof(m_slaveAddrInput), "0x%02X", group.slaveAddress);
-            std::snprintf(m_intervalInput, sizeof(m_intervalInput), "%u", group.interval);
+        if (ImGui::BeginCombo("##GroupSelect", previewName)) {
+            for (int n = 0; n < groupCount; n++) {
+                ImGui::PushID(n);
+
+                bool isSelected = (data.currentGroupIndex == n);
+                // 用 DontClosePopups，自行控制“点击选中并关闭”与“拖动排序保持打开”
+                if (ImGui::Selectable(data.commandGroups[n].name.c_str(), isSelected,
+                    ImGuiSelectableFlags_DontClosePopups)) {
+                    // 仅当本次操作不是拖动排序时，才作为“选中”处理
+                    if (!m_groupReordered) {
+                        data.currentGroupIndex = n;
+                        auto& group = m_viewModel->GetCurrentGroup();
+                        std::snprintf(m_slaveAddrInput, sizeof(m_slaveAddrInput), "0x%02X", group.slaveAddress);
+                        std::snprintf(m_intervalInput, sizeof(m_intervalInput), "%u", group.interval);
+                        ImGui::CloseCurrentPopup();
+                    }
+                }
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+
+                // 拖动排序：按住某项并将鼠标移出该项时，与相邻项交换位置
+                if (ImGui::IsItemActive() && !ImGui::IsItemHovered()) {
+                    float dragDeltaY = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).y;
+                    int targetIndex = n + (dragDeltaY < 0.0f ? -1 : 1);
+                    if (targetIndex >= 0 && targetIndex < groupCount) {
+                        m_viewModel->MoveGroup(n, targetIndex);
+                        ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+                        m_groupReordered = true;
+                    }
+                }
+
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
+        }
+        // 鼠标松开后复位拖动标记，使下一次单击能正常选中
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            m_groupReordered = false;
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("展开后按住列表项上下拖动可调整命令表顺序");
         }
 
         ImGui::SameLine();
@@ -116,6 +155,7 @@ namespace I2CDebugger {
             m_showRenamePopup = true;
             auto& group = m_viewModel->GetCurrentGroup();
             std::strncpy(m_renameBuffer, group.name.c_str(), sizeof(m_renameBuffer) - 1);
+            m_renameBuffer[sizeof(m_renameBuffer) - 1] = '\0';
         }
         ImGui::SameLine();
         if (ImGui::Button("删除")) { m_viewModel->DeleteGroup(); }

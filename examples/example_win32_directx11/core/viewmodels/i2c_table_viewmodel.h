@@ -46,6 +46,8 @@ namespace I2CDebugger {
         void AddGroup();
         void RenameGroup(const std::string& newName);
         void DeleteGroup();
+        // 拖动排序：交换两个命令表的位置，并同步当前选中索引
+        void MoveGroup(int fromIndex, int toIndex);
 
         // 导出/导入单个命令表
         bool ExportGroup(const std::string& filePath);

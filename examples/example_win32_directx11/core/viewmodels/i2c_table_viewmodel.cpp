@@ -119,6 +119,26 @@ namespace I2CDebugger {
         }
     }
 
+    // 交换两个命令表的位置（用于下拉列表的拖动排序）
+    void I2CTableViewModel::MoveGroup(int fromIndex, int toIndex)
+    {
+        int count = static_cast<int>(m_data.commandGroups.size());
+        if (fromIndex < 0 || fromIndex >= count ||
+            toIndex < 0 || toIndex >= count || fromIndex == toIndex) {
+            return;
+        }
+
+        std::swap(m_data.commandGroups[fromIndex], m_data.commandGroups[toIndex]);
+
+        // 让当前选中索引跟随被移动的命令表，保证显示的命令表不变
+        if (m_data.currentGroupIndex == fromIndex) {
+            m_data.currentGroupIndex = toIndex;
+        }
+        else if (m_data.currentGroupIndex == toIndex) {
+            m_data.currentGroupIndex = fromIndex;
+        }
+    }
+
     //导出当前命令表
     bool I2CTableViewModel::ExportGroup(const std::string& filePath) {
         return m_configService->ExportCommandGroup(m_data, m_data.currentGroupIndex, filePath);

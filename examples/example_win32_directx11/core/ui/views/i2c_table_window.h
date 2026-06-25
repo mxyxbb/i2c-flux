@@ -46,6 +46,9 @@ namespace I2CDebugger {
         char m_slaveAddrInput[16] = "0x50";
         char m_intervalInput[16] = "100";
 
+        // 命令表下拉列表拖动排序状态：本次拖动期间是否发生过排序
+        bool m_groupReordered = false;
+
         // 弹窗状态
         bool m_showPropertyPopup = false;
         bool m_showButtonNamePopup = false;
