@@ -878,7 +878,11 @@ namespace I2CDebugger {
     void HardwareService::EnableBatchMode(bool enable) {
 
         if(m_pmbus.GetDeviceMode() != PMBus::DeviceMode::MODE_SERIAL) {
-            // 仅 Serial 模式支持 Batch 批处理
+            // 仅 Serial 模式支持 Batch 批处理。
+            // 必须强制关闭，否则切换设备时（如先连 RPI2C 启用了批处理，
+            // 断开后再连 CP2112）会残留 true，导致非 Serial 设备误走批量分支，
+            // Flush 返回空列表从而批量读取全部失败。
+            m_useBatchMode = false;
             return;
         }
         m_useBatchMode = enable;

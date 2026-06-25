@@ -123,10 +123,4 @@
   <ItemGroup>
     <ResourceCompile Include="Resource.rc" />
   </ItemGroup>
-  <ItemGroup>
-    <Image Include="C:\Users\25000421\Downloads\combined.ico" />
-    <Image Include="C:\Users\25000421\Downloads\combined (1).ico" />
-    <Image Include="C:\Users\25000421\Downloads\combined (2).ico" />
-    <Image Include="C:\Users\25000421\Downloads\combined (3).ico" />
-  </ItemGroup>
 </Project>
