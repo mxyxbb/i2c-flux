@@ -606,14 +606,22 @@ namespace I2CDebugger {
                         }
 
                         if (entry.delayMs > 0) {
-                            m_pmbus.Flush();
+                            // 中途 Flush 同样会返回这批命令的状态，必须累加保存，
+                            // 否则带延时条目的结果会被丢弃，结果阶段误判为无响应。
+                            auto partial = m_pmbus.Flush();
+                            flushRet.insert(flushRet.end(), partial.begin(), partial.end());
                             std::this_thread::sleep_for(std::chrono::milliseconds(entry.delayMs));
                         }
                     }
-                    flushRet = m_pmbus.Flush();
+                    auto partial = m_pmbus.Flush();
+                    flushRet.insert(flushRet.end(), partial.begin(), partial.end());
                     m_pmbus.FlushOff();
                 }
 
+                // flushRet 仅包含「已使能」条目的状态（禁用条目不会入队），
+                // 因此必须用独立计数器 flushIndex 映射，不能用原始下标 i，
+                // 否则在前面存在禁用条目时会整体错位（如仅使能尾部项会全部误判失败）。
+                size_t flushIndex = 0;
                 for (size_t i = 0; i < task.singleEntries.size() && m_isConnected; i++) {
                     const auto& entry = task.singleEntries[i];
                     if (!entry.enabled) continue;
@@ -624,7 +632,8 @@ namespace I2CDebugger {
                     packet.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::system_clock::now().time_since_epoch()).count();
 
-                    int ret = (i < flushRet.size()) ? flushRet[i] : SLAVE_NOT_RESPONSE;
+                    int ret = (flushIndex < flushRet.size()) ? flushRet[flushIndex] : SLAVE_NOT_RESPONSE;
+                    flushIndex++;
                     packet.success = (ret >= 0);
                     packet.errorType = GetErrorType(ret);
 
@@ -753,11 +762,16 @@ namespace I2CDebugger {
                     }
 
                     if (entry.delayMs > 0) {
-                        m_pmbus.Flush();
+                        // 中途 Flush 的状态必须累加保存，否则带延时条目的结果会丢失。
+                        auto partial = m_pmbus.Flush();
+                        flushRet.insert(flushRet.end(), partial.begin(), partial.end());
                         std::this_thread::sleep_for(std::chrono::milliseconds(entry.delayMs));
                     }
                 }
-                flushRet = m_pmbus.Flush();
+                {
+                    auto partial = m_pmbus.Flush();
+                    flushRet.insert(flushRet.end(), partial.begin(), partial.end());
+                }
                 m_pmbus.FlushOff();
             }
 
