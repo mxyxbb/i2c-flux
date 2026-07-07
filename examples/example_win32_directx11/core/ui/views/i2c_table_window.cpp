@@ -73,6 +73,30 @@ namespace I2CDebugger {
         }
     }
 
+    // 将命令表名称转换为合法的 Windows 文件名：替换非法字符，保留多字节(UTF-8/中文)字符
+    static std::string MakeSafeFileName(const std::string& name) {
+        std::string result;
+        result.reserve(name.size());
+        for (unsigned char c : name) {
+            // 过滤 Windows 文件名非法字符（\ / : * ? " < > |）与控制字符
+            if (c < 0x20 || c == '\\' || c == '/' || c == ':' || c == '*' ||
+                c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
+                result += '_';
+            }
+            else {
+                result += static_cast<char>(c);
+            }
+        }
+        // Windows 不允许文件名以空格或点结尾
+        while (!result.empty() && (result.back() == ' ' || result.back() == '.')) {
+            result.pop_back();
+        }
+        if (result.empty()) {
+            result = "command_group";
+        }
+        return result;
+    }
+
     void I2CTableWindow::RenderGroupSelector()
     {
         auto& data = m_viewModel->GetData();
@@ -162,9 +186,10 @@ namespace I2CDebugger {
         ImGui::SameLine();
         if (ImGui::Button("导出")) {// 修改为"导出"
             m_showExportPopup = true;
-            // 设置默认文件名
+            // 设置默认文件名（清理名称中的非法字符，避免生成非法路径）
             auto& group = m_viewModel->GetCurrentGroup();
-            std::snprintf(m_exportPathBuffer, sizeof(m_exportPathBuffer), "%s.json", group.name.c_str());
+            std::string safeName = MakeSafeFileName(group.name);
+            std::snprintf(m_exportPathBuffer, sizeof(m_exportPathBuffer), "%s.json", safeName.c_str());
         }
         ImGui::SameLine();
         if (ImGui::Button("导入")) {  // 修改为"导入"

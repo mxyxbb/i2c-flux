@@ -11,6 +11,7 @@ namespace I2CDebugger {
     I2CTableViewModel::I2CTableViewModel(std::shared_ptr<HardwareService> hardwareService,
         std::shared_ptr<PlotViewModel> plotViewModel)
         : m_hardwareService(hardwareService)
+        , m_configService(std::make_shared<ConfigurationService>()) // 修复：之前未初始化，导出/导入失败路径写入 m_lastError 时会通过空指针崩溃
         , m_plotViewModel(plotViewModel) // 初始化
         , m_expressionParser(std::make_unique<ExpressionParser>())
         , m_dataLogger(std::make_unique<DataLogger>())  // 新增

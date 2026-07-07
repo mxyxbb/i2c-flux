@@ -178,6 +178,7 @@ int main(int, char**)
         // ---------------------------------------------------------
        // 渲染应用程序
         app.Render();
+        //ImGui::ShowDemoWindow();
         MyUi::DockspaceDemoEnd();
 
         // Rendering
